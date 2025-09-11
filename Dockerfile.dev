@@ -1,0 +1,31 @@
+# Dockerfile para desarrollo con hot reload
+FROM node:18-alpine
+
+WORKDIR /app
+
+# Instalar dependencias necesarias
+RUN apk add --no-cache libc6-compat
+
+# Copiar archivos de dependencias
+COPY package.json package-lock.json* ./
+
+# Instalar todas las dependencias (incluyendo devDependencies)
+RUN npm ci
+
+# Copiar configuración de Next.js
+COPY next.config.ts ./
+COPY tsconfig.json ./
+COPY tailwind.config.ts ./
+COPY postcss.config.mjs ./
+
+# Copiar archivos públicos (logos e imágenes) - importante para desarrollo
+COPY public/ ./public/
+
+# Copiar código fuente
+COPY src/ ./src/
+
+# Exponer puerto
+EXPOSE 3000
+
+# Comando por defecto para desarrollo
+CMD ["npm", "run", "dev"]
