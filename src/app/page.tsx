@@ -8,7 +8,12 @@ import { LanguageProvider, useLanguage } from '@/contexts/LanguageContext';
 function LandingPageContent() {
   const router = useRouter();
   const { t } = useLanguage();
-  const [showSplash, setShowSplash] = useState(true);
+
+  // showSplash está en el código (se conserva el apartado),
+  // pero lo inicializamos en false para que al iniciar se muestre
+  // **directamente** el contenido principal (logo + título + CTA único).
+  const [showSplash, setShowSplash] = useState(false);
+
   const [currentImage, setCurrentImage] = useState(0);
 
   const images = [
@@ -19,12 +24,6 @@ function LandingPageContent() {
     "/carrusel/seguridad5.jpg",
   ];
 
-  // Ocultar splash después de 3s
-  useEffect(() => {
-    const timer = setTimeout(() => setShowSplash(false), 3000);
-    return () => clearTimeout(timer);
-  }, []);
-
   // Cambiar imagen del carrusel cada 5s
   useEffect(() => {
     const interval = setInterval(() => {
@@ -32,6 +31,11 @@ function LandingPageContent() {
     }, 5000);
     return () => clearInterval(interval);
   }, [images.length]);
+
+  // CTA único: ir al login
+  const handleContinue = () => {
+    router.push('/login');
+  };
 
   return (
     <div className="min-h-screen w-screen relative overflow-hidden">
@@ -61,11 +65,11 @@ function LandingPageContent() {
         </AnimatePresence>
       </div>
 
-      {/* Splash Screen */}
+      {/* Splash (conservado en el DOM, pero no visible por defecto) */}
       <AnimatePresence>
         {showSplash && (
           <motion.div
-            className="absolute inset-0 bg-gray-800 flex flex-col items-center justify-center text-white space-y-6 z-50 px-4"
+            className="absolute inset-0 bg-gray-800 flex flex-col items-center justify-center text-white space-y-6 z-50 px-4 cursor-pointer"
             initial={{ opacity: 1 }}
             exit={{ opacity: 0, transition: { duration: 1 } }}
             onClick={() => setShowSplash(false)}
@@ -99,7 +103,7 @@ function LandingPageContent() {
         )}
       </AnimatePresence>
 
-      {/* Contenido principal */}
+      {/* Contenido principal — mostrado desde el inicio */}
       {!showSplash && (
         <div className="relative z-10 flex flex-col items-center justify-center min-h-screen text-white space-y-8">
           <div className="flex items-center space-x-4 p-4 rounded-2xl bg-black/40 backdrop-blur-md">
@@ -107,18 +111,14 @@ function LandingPageContent() {
             <h1 className="text-4xl font-bold">{t('landing.title')}</h1>
           </div>
 
+          {/* CTA Único: Toca para continuar -> login */}
           <div className="flex flex-col space-y-4 w-60">
             <button
-              onClick={() => router.push('/login')}
+              onClick={handleContinue}
               className="bg-blue-600 text-white py-3 rounded-xl text-lg font-semibold hover:bg-blue-700 transition"
+              aria-label={t('landing.tapToContinue') ?? 'Toca para continuar'}
             >
-              {t('landing.login')}
-            </button>
-            <button
-              onClick={() => router.push('/register')}
-              className="bg-gray-200 text-gray-800 py-3 rounded-xl text-lg font-semibold hover:bg-gray-300 transition"
-            >
-              {t('landing.register')}
+              {t('landing.tapToContinue') ?? 'Toca para continuar'}
             </button>
           </div>
         </div>
