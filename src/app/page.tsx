@@ -13,11 +13,11 @@ function LandingPageContent() {
   const [exiting, setExiting] = useState(false);
 
   const images = [
-    "/carrusel/seguridad1.jpg",
-    "/carrusel/seguridad2.jpg",
-    "/carrusel/seguridad3.jpg",
-    "/carrusel/seguridad4.jpg",
-    "/carrusel/seguridad5.jpg",
+    "/carrusel/seguridad1.png",
+    "/carrusel/seguridad2.png",
+    "/carrusel/seguridad3.png",
+    "/carrusel/seguridad4.png",
+    "/carrusel/seguridad5.png",
   ];
 
   // Rotación del carrusel
@@ -82,7 +82,7 @@ function LandingPageContent() {
       {/* Título centrado arriba (más grande) */}
       <div className="absolute top-6 left-1/2 transform -translate-x-1/2 z-30 flex items-center gap-3 px-4 py-2 rounded-xl">
         <Image src="/Logo.png" alt="Logo" width={56} height={56} priority />
-        <span className="text-white font-extrabold text-3xl sm:text-4xl md:text-5xl select-none tracking-tight drop-shadow-sm">
+        <span className="text-white- font-extrabold text-3xl sm:text-4xl md:text-5xl select-none tracking-tight drop-shadow-sm">
           {t('landing.title')}
         </span>
       </div>

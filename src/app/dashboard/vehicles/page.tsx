@@ -9,6 +9,7 @@ type Vehicle = {
   plate: string;
   type: 'carro' | 'moto' | 'bicicleta';
   createdAt: string;
+  facePhoto?: string | null;
 };
 
 const LOCAL_KEY = 'vehicles_v1';
@@ -17,7 +18,7 @@ const LOCAL_KEY = 'vehicles_v1';
 function useLocalStorage<T>(key: string, initialValue: T) {
   const [state, setState] = useState<T>(() => {
     try {
-      const raw = localStorage.getItem(key);
+      const raw = typeof window !== 'undefined' ? localStorage.getItem(key) : null;
       return raw ? (JSON.parse(raw) as T) : initialValue;
     } catch (e) {
       console.error('LocalStorage read error', e);
@@ -27,7 +28,9 @@ function useLocalStorage<T>(key: string, initialValue: T) {
 
   useEffect(() => {
     try {
-      localStorage.setItem(key, JSON.stringify(state));
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(key, JSON.stringify(state));
+      }
     } catch (e) {
       console.error('LocalStorage write error', e);
     }
@@ -47,34 +50,39 @@ export default function VehiclesPage() {
   // nuevo estado para modo: 'manual' | 'auto'
   const [mode, setMode] = useState<'manual' | 'auto'>('manual');
 
-  // cámara refs / estados para modo automático
+  // cámara refs / estados para modo automático y captura de rostro
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const [recognizing, setRecognizing] = useState(false);
   const [lastConfidence, setLastConfidence] = useState<number | null>(null);
 
+  // Estado para foto de rostro capturada
+  const [facePhoto, setFacePhoto] = useState<string | null>(null);
+
+  // Estado para foto ampliada al hacer click
+  const [expandedPhoto, setExpandedPhoto] = useState<string | null>(null);
+
   // API key (pon NEXT_PUBLIC_PLATE_API_KEY en .env.local)
   const PLATE_API_KEY = process.env.NEXT_PUBLIC_PLATE_API_KEY || '';
 
   useEffect(() => {
     if (!message) return;
-    const t = setTimeout(() => setMessage(null), 3000);
-    return () => clearTimeout(t);
+    const tmo = setTimeout(() => setMessage(null), 4000);
+    return () => clearTimeout(tmo);
   }, [message]);
 
-  // Inicia cámara cuando mode === 'auto'
+  // Inicia cámara cuando mode === 'auto' o 'manual'
   useEffect(() => {
-    if (mode === 'auto') startCamera();
-    else stopCamera();
-    return () => stopCamera(); // cleanup al desmontar
+    if (mode === 'auto' || mode === 'manual') startCamera();
+    return () => stopCamera(); // cleanup al desmontar o al cambiar modo
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode]);
 
   const startCamera = async () => {
     try {
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        setMessage(t('vehicles.browserNotSupported'));
+      if (typeof navigator === 'undefined' || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        setMessage(t('vehicles.browserNotSupported') ?? 'Tu navegador no soporta cámara');
         return;
       }
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -84,12 +92,17 @@ export default function VehiclesPage() {
       streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        await videoRef.current.play();
+        // play is async
+        try {
+          await videoRef.current.play();
+        } catch (e) {
+          // ignore autoplay blocking
+        }
       }
-      setMessage(t('vehicles.cameraStarted'));
+      setMessage(t('vehicles.cameraStarted') ?? 'Cámara iniciada');
     } catch (err) {
       console.error('Error iniciando cámara', err);
-      setMessage(t('vehicles.cameraError'));
+      setMessage(t('vehicles.cameraError') ?? 'Error al iniciar la cámara');
     }
   };
 
@@ -100,6 +113,10 @@ export default function VehiclesPage() {
         streamRef.current = null;
       }
       if (videoRef.current) {
+        try {
+          videoRef.current.pause();
+        } catch {}
+        // @ts-ignore
         videoRef.current.srcObject = null;
       }
     } catch (err) {
@@ -107,40 +124,32 @@ export default function VehiclesPage() {
     }
   };
 
-  // FUNCIÓN DE VALIDACIÓN MEJORADA
-  const validatePlate = (plate: string): string | null => {
+  const validatePlate = (plate: string) => {
     const cleaned = plate.trim().toUpperCase();
-
-    // Regex para placas de vehículos en Colombia (ej: ABC-123 o ABC-12D)
-    const carPlateRegex = /^[A-Z]{3}-?\d{3}$/;
-    const motorcyclePlateRegex = /^[A-Z]{3}-?\d{2}[A-Z]$/;
-
-    if (carPlateRegex.test(cleaned) || motorcyclePlateRegex.test(cleaned)) {
-      // Si la placa es válida, se devuelve sin guiones para guardar
-      return cleaned.replace(/-/g, '');
-    }
-
-    return null; // Retorna null si no coincide con los formatos
+    return /^[A-Z0-9-]{3,8}$/.test(cleaned) ? cleaned : null;
   };
 
-  const resetForm = () => setForm({ name: '', plate: '', type: 'carro' });
+  const resetForm = () => {
+    setForm({ name: '', plate: '', type: 'carro' });
+    setFacePhoto(null);
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const name = form.name.trim();
     const plate = validatePlate(form.plate || '');
-    if (!name) return setMessage(t('vehicles.nameRequired'));
-    if (!plate) return setMessage(t('vehicles.invalidPlate'));
+    if (!name) return setMessage(t('vehicles.nameRequired') ?? 'Nombre requerido');
+    if (!plate) return setMessage(t('vehicles.invalidPlate') ?? 'Placa inválida');
 
     const duplicate = vehicles.find((v) => v.plate === plate && v.id !== editingId);
-    if (duplicate) return setMessage(t('vehicles.duplicatePlate'));
+    if (duplicate) return setMessage(t('vehicles.duplicatePlate') ?? 'Placa duplicada');
 
-    if (editingId) {
+    if (editingId !== null) {
       const updated = vehicles.map((v) =>
-        v.id === editingId ? { ...v, name, plate, type: form.type, createdAt: v.createdAt } : v
+        v.id === editingId ? { ...v, name, plate, type: form.type, createdAt: v.createdAt, facePhoto } : v
       );
       setVehicles(updated);
-      setMessage(t('vehicles.vehicleUpdated'));
+      setMessage(t('vehicles.vehicleUpdated') ?? 'Vehículo actualizado');
       setEditingId(null);
       resetForm();
       return;
@@ -152,25 +161,26 @@ export default function VehiclesPage() {
       plate,
       type: form.type,
       createdAt: new Date().toISOString(),
+      facePhoto,
     };
 
     setVehicles((prev) => [newVehicle, ...prev]);
-    setMessage(t('vehicles.vehicleRegistered'));
+    setMessage(t('vehicles.vehicleRegistered') ?? 'Vehículo registrado');
     resetForm();
-    // si estabas en modo automático, mantener modo o cambiar a manual según prefieras
   };
 
   const handleEdit = (v: Vehicle) => {
     setEditingId(v.id);
     setForm({ name: v.name, plate: v.plate, type: v.type });
+    setFacePhoto(v.facePhoto || null);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleDelete = (id: number) => {
-    const ok = confirm(t('vehicles.deleteConfirm'));
+    const ok = confirm(t('vehicles.deleteConfirm') ?? '¿Eliminar este vehículo?');
     if (!ok) return;
     setVehicles((prev) => prev.filter((p) => p.id !== id));
-    setMessage(t('vehicles.vehicleDeleted'));
+    setMessage(t('vehicles.vehicleDeleted') ?? 'Vehículo eliminado');
   };
 
   const filtered = useMemo(() => {
@@ -182,17 +192,34 @@ export default function VehiclesPage() {
   }, [vehicles, query]);
 
   const exportCSV = () => {
-    if (!vehicles.length) return setMessage(t('vehicles.noVehiclesToExport'));
-    const header = ['id', 'name', 'plate', 'type', 'createdAt'];
-    const rows = vehicles.map((v) => [v.id, v.name, v.plate, v.type, v.createdAt]);
-    const csv = [header, ...rows].map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
+    if (!vehicles.length) return setMessage(t('vehicles.noVehiclesToExport') ?? 'No hay vehículos para exportar');
+    const header = ['id', 'name', 'plate', 'type', 'createdAt', 'facePhoto'];
+    const rows = vehicles.map((v) => [v.id, v.name, v.plate, v.type, v.createdAt, v.facePhoto || '']);
+    // construir CSV escapando comillas
+    const csv = [header, ...rows]
+      .map((r) =>
+        r
+          .map((c) => {
+            const cell = String(c ?? '');
+            // si contiene comillas, comas o saltos, la encerramos en comillas y escapamos comillas dobles
+            const escaped = cell.replace(/"/g, '""');
+            if (/[",\n]/.test(cell)) return `"${escaped}"`;
+            return escaped;
+          })
+          .join(',')
+      )
+      .join('\n');
+
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
     a.download = 'vehicles.csv';
+    document.body.appendChild(a);
     a.click();
+    a.remove();
     URL.revokeObjectURL(url);
+    setMessage(t('vehicles.csvExported') ?? 'CSV exportado');
   };
 
   const cancelEdit = () => {
@@ -202,21 +229,21 @@ export default function VehiclesPage() {
 
   // ----- AUTOMÁTICO: captura y reconocimiento -----
   const captureAndRecognize = async () => {
-    if (!videoRef.current) return setMessage(t('vehicles.cameraNotStarted'));
+    if (!videoRef.current) return setMessage(t('vehicles.cameraNotStarted') ?? 'Cámara no iniciada');
     if (!PLATE_API_KEY) {
-      setMessage(t('vehicles.missingApiKey'));
+      setMessage(t('vehicles.missingApiKey') ?? 'Falta API key');
       return;
     }
     try {
       setRecognizing(true);
-      setMessage(t('vehicles.capturingImage'));
+      setMessage(t('vehicles.capturingImage') ?? 'Capturando imagen...');
 
       // dibujar frame en canvas
       const video = videoRef.current;
       if (!canvasRef.current) canvasRef.current = document.createElement('canvas');
       const canvas = canvasRef.current;
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
+      canvas.width = video.videoWidth || 1280;
+      canvas.height = video.videoHeight || 720;
       const ctx = canvas.getContext('2d');
       if (!ctx) throw new Error('No se pudo crear contexto del canvas');
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
@@ -227,12 +254,13 @@ export default function VehiclesPage() {
       );
 
       if (!blob) {
-        setMessage(t('vehicles.captureError'));
+        setMessage(t('vehicles.captureError') ?? 'Error al capturar');
         setRecognizing(false);
         return;
       }
 
-      setMessage(t('vehicles.sendingRecognition'));
+      setMessage(t('vehicles.sendingRecognition') ?? 'Enviando a reconocimiento...');
+
       const formData = new FormData();
       formData.append('upload', blob, 'plate.jpg');
       formData.append('regions', 'co');
@@ -255,24 +283,24 @@ export default function VehiclesPage() {
       // interpretar respuesta (según docs)
       if (data.results && data.results.length > 0) {
         const r = data.results[0];
-        const plateDetected = (r.plate || '').toUpperCase();
-        const confidence = r.score ?? (r.confidence ?? null);
+        const plateDetected = (r.plate || '').toString().toUpperCase();
+        const confidence = (r.score ?? r.confidence) ?? null;
         if (plateDetected) {
           setForm((prev) => ({ ...prev, plate: plateDetected }));
           setLastConfidence(confidence ?? null);
-          setMessage(`${t('vehicles.plateDetected')}: ${plateDetected}`);
+          setMessage(`${t('vehicles.plateDetected') ?? 'Placa detectada'}: ${plateDetected}`);
           // desplazar la vista al formulario para completar nombre/tipo y registrar
           window.scrollTo({ top: 0, behavior: 'smooth' });
         } else {
-          setMessage(t('vehicles.noPlateDetected'));
+          setMessage(t('vehicles.noPlateDetected') ?? 'No se detectó placa');
         }
       } else {
-        setMessage(t('vehicles.noPlateDetected'));
+        setMessage(t('vehicles.noPlateDetected') ?? 'No se detectó placa');
       }
     } catch (err: unknown) {
       console.error('Error reconocimiento:', err);
       const errorMessage = err instanceof Error ? err.message : String(err);
-      setMessage(t('vehicles.recognitionError') + ': ' + errorMessage);
+      setMessage((t('vehicles.recognitionError') ?? 'Error de reconocimiento') + ': ' + errorMessage);
     } finally {
       setRecognizing(false);
     }
@@ -280,14 +308,13 @@ export default function VehiclesPage() {
 
   // función para registrar desde modo automático (usa la misma validación)
   const registerFromAuto = () => {
-    // reusar la lógica de handleSubmit sin evento
     const name = form.name.trim();
     const plate = validatePlate(form.plate || '');
-    if (!name) return setMessage(t('vehicles.nameRequired'));
-    if (!plate) return setMessage(t('vehicles.invalidPlate'));
+    if (!name) return setMessage(t('vehicles.nameRequired') ?? 'Nombre requerido');
+    if (!plate) return setMessage(t('vehicles.invalidPlate') ?? 'Placa inválida');
 
     const duplicate = vehicles.find((v) => v.plate === plate && v.id !== editingId);
-    if (duplicate) return setMessage(t('vehicles.duplicatePlate'));
+    if (duplicate) return setMessage(t('vehicles.duplicatePlate') ?? 'Placa duplicada');
 
     const newVehicle: Vehicle = {
       id: Date.now(),
@@ -295,11 +322,28 @@ export default function VehiclesPage() {
       plate,
       type: form.type,
       createdAt: new Date().toISOString(),
+      facePhoto,
     };
 
     setVehicles((prev) => [newVehicle, ...prev]);
-    setMessage(t('vehicles.vehicleRegisteredAuto'));
+    setMessage(t('vehicles.vehicleRegisteredAuto') ?? 'Vehículo registrado automáticamente');
     resetForm();
+  };
+
+  // función para capturar foto de rostro desde video
+  const captureFacePhoto = () => {
+    if (!videoRef.current) return setMessage(t('vehicles.cameraNotStarted') ?? 'Cámara no iniciada');
+    const video = videoRef.current;
+    if (!canvasRef.current) canvasRef.current = document.createElement('canvas');
+    const canvas = canvasRef.current;
+    canvas.width = video.videoWidth || 1280;
+    canvas.height = video.videoHeight || 720;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return setMessage(t('vehicles.captureError') ?? 'Error al capturar');
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
+    setFacePhoto(dataUrl);
+    setMessage(t('vehicles.photoCaptured') ?? 'Foto capturada');
   };
 
   return (
@@ -309,11 +353,9 @@ export default function VehiclesPage() {
         <div className="flex items-center justify-between mb-4">
           <div>
             <h2 className="text-2xl font-bold text-gray-800 dark:text-white">
-              {editingId ? t('vehicles.editTitle') : `🚘 ${t('vehicles.pageTitle')}`}
+              {editingId !== null ? t('vehicles.editTitle') ?? 'Editar vehículo' : <>🚘 {t('vehicles.pageTitle') ?? 'Registro de vehículos'}</>}
             </h2>
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              {t('vehicles.subtitle')}
-            </p>
+            <p className="text-sm text-gray-500 dark:text-gray-400">{t('vehicles.subtitle')}</p>
           </div>
 
           <div className="flex gap-2 items-center">
@@ -324,7 +366,7 @@ export default function VehiclesPage() {
               className="px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-400 dark:bg-gray-800 dark:text-white"
             />
             <button onClick={exportCSV} className="px-3 py-2 bg-green-600 text-white rounded-md hover:brightness-90">
-              {t('vehicles.exportCSV')}
+              {t('vehicles.exportCSV') ?? 'Exportar CSV'}
             </button>
           </div>
         </div>
@@ -334,36 +376,44 @@ export default function VehiclesPage() {
           <button
             type="button"
             onClick={() => setMode('manual')}
-            className={`px-4 py-2 rounded-md ${mode === 'manual' ? 'bg-blue-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-white'}`}
+            className={`px-4 py-2 rounded-md ${
+              mode === 'manual'
+                ? 'bg-blue-600 text-white'
+                : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-white'
+            }`}
           >
-            {t('vehicles.manualMode')}
+            {t('vehicles.manualMode') ?? 'Manual'}
           </button>
           <button
             type="button"
             onClick={() => setMode('auto')}
-            className={`px-4 py-2 rounded-md ${mode === 'auto' ? 'bg-blue-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-white'}`}
+            className={`px-4 py-2 rounded-md ${
+              mode === 'auto'
+                ? 'bg-blue-600 text-white'
+                : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-white'
+            }`}
           >
-            {t('vehicles.autoMode')}
+            {t('vehicles.autoMode') ?? 'Automático'}
           </button>
         </div>
 
-        {/* FORMULARIO MANUAL (se muestra si mode === 'manual' o siempre mostramos inputs para registro cuando la placa está precargada) */}
+        {/* FORMULARIO MANUAL / AUTOMÁTICO (se muestra en ambos modos) */}
         {(mode === 'manual' || mode === 'auto') && (
           <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            {/* Nombre propietario - mostrar siempre para que el usuario complete después de reconocimiento */}
+            {/* Nombre propietario */}
             <input
               type="text"
-              placeholder={t('vehicles.ownerPlaceholder')}
+              placeholder={t('vehicles.ownerPlaceholder') ?? 'Nombre del propietario'}
               value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
               required
               className="col-span-1 md:col-span-2 p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-white"
             />
 
-            {/* Placa (autocompletada si venimos de auto) */}
+            {/* Placa */}
             <input
               type="text"
-              placeholder={t('vehicles.platePlaceholder')}
+              placeholder={t('vehicles.platePlaceholder') ?? 'Placa'}
               value={form.plate}
               onChange={(e) => setForm({ ...form, plate: e.target.value.toUpperCase() })}
               required
@@ -375,30 +425,64 @@ export default function VehiclesPage() {
               onChange={(e) => setForm({ ...form, type: e.target.value as Vehicle['type'] })}
               className="p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-white"
             >
-              <option value="carro">{t('vehicles.typeCar')}</option>
-              <option value="moto">{t('vehicles.typeMotorcycle')}</option>
-              <option value="bicicleta">{t('vehicles.typeBicycle')}</option>
+              <option value="carro">{t('vehicles.typeCar') ?? 'Carro'}</option>
+              <option value="moto">{t('vehicles.typeMotorcycle') ?? 'Moto'}</option>
+              <option value="bicicleta">{t('vehicles.typeBicycle') ?? 'Bicicleta'}</option>
             </select>
 
+            {/* Mostrar miniatura de foto capturada */}
+            <div className="md:col-span-3 flex items-center gap-4 mt-2">
+              {facePhoto && (
+                <img
+                  src={facePhoto}
+                  alt="Foto rostro"
+                  className="w-24 h-24 rounded-full object-cover border border-gray-300 dark:border-gray-600"
+                />
+              )}
+
+              {/* Botón Capturar rostro */}
+              <button
+                type="button"
+                onClick={captureFacePhoto}
+                className="px-4 py-2 border rounded-md"
+              >
+                {t('vehicles.captureFace') ?? 'Capturar rostro'}
+              </button>
+            </div>
+
             <div className="md:col-span-3 flex gap-2 mt-2">
-              {/* Si estamos en modo auto y ya hay placa detectada, el botón registra rápido usando registerFromAuto */}
               {mode === 'auto' ? (
                 <>
-                  <button type="button" onClick={registerFromAuto} className="flex-1 bg-blue-600 text-white py-3 rounded-lg font-semibold">
-                    {t('vehicles.registerAuto')}
+                  <button
+                    type="button"
+                    onClick={registerFromAuto}
+                    className="flex-1 bg-blue-600 text-white py-3 rounded-lg font-semibold"
+                  >
+                    {t('vehicles.registerAuto') ?? 'Registrar (auto)'}
                   </button>
-                  <button type="button" onClick={() => setMode('manual')} className="px-4 py-3 border rounded-lg">
-                    {t('vehicles.changeToManual')}
+                  <button
+                    type="button"
+                    onClick={() => setMode('manual')}
+                    className="px-4 py-3 border rounded-lg"
+                  >
+                    {t('vehicles.changeToManual') ?? 'Cambiar a manual'}
                   </button>
                 </>
               ) : (
                 <>
-                  <button type="submit" className="flex-1 bg-blue-600 text-white py-3 rounded-lg font-semibold">
-                    {editingId ? t('vehicles.saveChanges') : t('vehicles.register')}
+                  <button
+                    type="submit"
+                    className="flex-1 bg-blue-600 text-white py-3 rounded-lg font-semibold"
+                  >
+                    {editingId !== null ? t('vehicles.saveChanges') ?? 'Guardar cambios' : t('vehicles.register') ?? 'Registrar'}
                   </button>
-                  {editingId && (
-                    <button type="button" onClick={cancelEdit} className="px-4 py-3 border rounded-lg">
-                      {t('vehicles.cancel')}
+                  {editingId !== null && (
+                    <button
+                      type="button"
+                      onClick={cancelEdit}
+                      className="px-4 py-3 border rounded-lg"
+                    >
+                      {t('vehicles.cancel') ?? 'Cancelar'}
                     </button>
                   )}
                 </>
@@ -410,7 +494,14 @@ export default function VehiclesPage() {
         {/* Mensaje */}
         {message && <div className="mt-3 text-sm text-gray-700 dark:text-gray-200">{message}</div>}
 
-        {/* Si estamos en modo automático mostramos el visor de cámara y control */}
+        {/* Cámara visible en modo manual */}
+        {mode === 'manual' && (
+          <div className="mt-4 bg-gray-100 dark:bg-gray-800 p-3 rounded-lg max-w-3xl mx-auto">
+            <video ref={videoRef} className="w-full h-64 object-cover rounded" autoPlay muted playsInline />
+          </div>
+        )}
+
+        {/* Visor de cámara y controles en modo automático */}
         {mode === 'auto' && (
           <div className="mt-4">
             <div className="bg-gray-100 dark:bg-gray-800 p-3 rounded-lg">
@@ -428,20 +519,23 @@ export default function VehiclesPage() {
                   disabled={recognizing}
                   className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-60"
                 >
-                  {recognizing ? t('vehicles.processing') : t('vehicles.captureAndRecognize')}
+                  {recognizing ? t('vehicles.processing') ?? 'Procesando...' : t('vehicles.captureAndRecognize') ?? 'Capturar y reconocer'}
                 </button>
 
                 <button
                   type="button"
-                  onClick={() => { stopCamera(); setMode('manual'); }}
+                  onClick={() => {
+                    stopCamera();
+                    setMode('manual');
+                  }}
                   className="px-4 py-2 border rounded-md"
                 >
-                  {t('vehicles.stopCamera')}
+                  {t('vehicles.stopCamera') ?? 'Detener cámara'}
                 </button>
 
                 {lastConfidence !== null && (
                   <div className="ml-auto text-sm text-gray-600 dark:text-gray-300">
-                    {t('vehicles.confidence')}: {(lastConfidence * 100).toFixed(1)}%
+                    {t('vehicles.confidence') ?? 'Confianza'}: {(lastConfidence * 100).toFixed(1)}%
                   </div>
                 )}
               </div>
@@ -452,25 +546,51 @@ export default function VehiclesPage() {
 
       {/* Lista de vehículos registrada */}
       <div className="max-w-3xl mx-auto bg-white dark:bg-gray-900 p-6 rounded-2xl shadow-md">
-        <h3 className="text-xl font-semibold text-gray-800 dark:text-white mb-4">🧡 {t('vehicles.registeredList')} ({vehicles.length})</h3>
+        <h3 className="text-xl font-semibold text-gray-800 dark:text-white mb-4">
+          🧡 {t('vehicles.registeredList') ?? 'Vehículos registrados'} ({vehicles.length})
+        </h3>
 
         {filtered.length === 0 ? (
-          <p className="text-gray-500 dark:text-gray-400">{t('vehicles.noMatches')}</p>
+          <p className="text-gray-500 dark:text-gray-400">{t('vehicles.noMatches') ?? 'No hay coincidencias'}</p>
         ) : (
           <ul className="space-y-3">
             {filtered.map((v) => (
-              <li key={v.id} className="p-4 border rounded-lg flex items-center justify-between bg-gradient-to-r from-white to-blue-50 dark:from-gray-900 dark:to-blue-900/20">
-                <div>
-                  <div className="flex items-baseline gap-3">
-                    <span className="text-lg font-medium text-gray-800 dark:text-white">{v.name}</span>
-                    <span className="text-xs px-2 py-0.5 rounded-md bg-gray-100 dark:bg-gray-800 text-gray-600">{v.type}</span>
+              <li
+                key={v.id}
+                className="p-4 border rounded-lg flex items-center justify-between bg-gradient-to-r from-white to-blue-50 dark:from-gray-900 dark:to-blue-900/20"
+              >
+                <div className="flex items-center gap-3">
+                  {v.facePhoto && (
+                    <img
+                      src={v.facePhoto}
+                      alt={`Foto de ${v.name}`}
+                      className="w-12 h-12 rounded-full object-cover cursor-pointer"
+                      onClick={() => setExpandedPhoto(v.facePhoto || null)}
+                    />
+                  )}
+                  <div>
+                    <div className="flex items-baseline gap-3">
+                      <span className="text-lg font-medium text-gray-800 dark:text-white">{v.name}</span>
+                      <span className="text-xs px-2 py-0.5 rounded-md bg-gray-100 dark:bg-gray-800 text-gray-600">
+                        {v.type}
+                      </span>
+                    </div>
+                    <div className="text-sm text-gray-600 dark:text-gray-300">
+                      {v.plate} • {new Date(v.createdAt).toLocaleString()}
+                    </div>
                   </div>
-                  <div className="text-sm text-gray-600 dark:text-gray-300">{v.plate} • {new Date(v.createdAt).toLocaleString()}</div>
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <button onClick={() => handleEdit(v)} className="px-3 py-2 border rounded-md text-sm">{t('vehicles.edit')}</button>
-                  <button onClick={() => handleDelete(v.id)} className="px-3 py-2 bg-red-600 text-white rounded-md text-sm">{t('vehicles.delete')}</button>
+                  <button onClick={() => handleEdit(v)} className="px-3 py-2 border rounded-md text-sm">
+                    {t('vehicles.edit') ?? 'Editar'}
+                  </button>
+                  <button
+                    onClick={() => handleDelete(v.id)}
+                    className="px-3 py-2 bg-red-600 text-white rounded-md text-sm"
+                  >
+                    {t('vehicles.delete') ?? 'Eliminar'}
+                  </button>
                 </div>
               </li>
             ))}
@@ -478,10 +598,35 @@ export default function VehiclesPage() {
         )}
 
         <div className="mt-4 text-sm text-gray-500 dark:text-gray-400 flex justify-between items-center">
-          <span>{vehicles.length} {t('vehicles.total')}</span>
-          <button onClick={() => { setVehicles([]); setMessage(t('vehicles.listCleared')); }} className="underline">{t('vehicles.clearList')}</button>
+          <span>
+            {vehicles.length} {t('vehicles.total') ?? 'total'}
+          </span>
+          <button
+            onClick={() => {
+              setVehicles([]);
+              setMessage(t('vehicles.listCleared') ?? 'Lista vaciada');
+            }}
+            className="underline"
+          >
+            {t('vehicles.clearList') ?? 'Limpiar lista'}
+          </button>
         </div>
       </div>
+
+      {/* Modal para foto ampliada */}
+      {expandedPhoto && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-70 flex justify-center items-center z-50"
+          onClick={() => setExpandedPhoto(null)}
+        >
+          <img
+            src={expandedPhoto}
+            alt="Foto ampliada"
+            className="max-w-full max-h-full rounded-lg shadow-lg"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
     </div>
   );
 }
