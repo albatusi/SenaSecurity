@@ -5,6 +5,8 @@ import { FaUser, FaEnvelope, FaLock, FaIdCard, FaUserTag, FaCamera } from 'react
 import Image from 'next/image';
 import { LanguageProvider, useLanguage } from '@/contexts/LanguageContext';
 
+type MsgType = 'success' | 'error' | null;
+
 function RegisterContent() {
   const router = useRouter();
   const { t } = useLanguage();
@@ -15,10 +17,23 @@ function RegisterContent() {
     email: '',
     password: '',
     confirmPassword: '',
-    photo: '', // Guardaremos la foto en base64 o URL
+    photo: '',
   });
 
   const [preview, setPreview] = useState<string | null>(null);
+
+  // Mensaje inline
+  const [message, setMessage] = useState<string | null>(null);
+  const [messageType, setMessageType] = useState<MsgType>(null);
+
+  const showMessage = (text: string, type: MsgType = 'error') => {
+    setMessage(text);
+    setMessageType(type);
+    setTimeout(() => {
+      setMessage(null);
+      setMessageType(null);
+    }, 3500);
+  };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -39,46 +54,63 @@ function RegisterContent() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (form.password !== form.confirmPassword) {
-      alert(t('register.passwordMismatch'));
+    // Validaciones básicas
+    if (!form.name.trim() || !form.email.trim() || !form.password || !form.confirmPassword || !form.role) {
+      showMessage(t('register.fillAllFields') ?? 'Por favor completa todos los campos requeridos.', 'error');
       return;
     }
 
-    // Construimos un objeto más limpio para guardar en localStorage (sin confirmPassword)
+    if (form.password !== form.confirmPassword) {
+      showMessage(t('register.passwordMismatch') ?? 'Las contraseñas no coinciden.', 'error');
+      return;
+    }
+
+    // Construimos objeto limpio
     const userToSave = {
       name: form.name.trim(),
       document: form.document.trim(),
       role: form.role,
       email: form.email.trim().toLowerCase(),
-      password: form.password, // idealmente el back debería hashear esto
-      photo: form.photo || null, // base64 o url (o null si no subió)
+      password: form.password,
+      photo: form.photo || null,
     };
 
-    // Guardamos en localStorage (ProfilePage leerá user.photo o user.image)
+    // Guardar en localStorage
     localStorage.setItem('user', JSON.stringify(userToSave));
 
-    alert(t('register.successMessage'));
-    router.push('/login');
+    showMessage(t('register.successMessage') ?? 'Registro exitoso', 'success');
+
+    // Redirigir al login tras un pequeño delay para que el usuario vea el mensaje
+    setTimeout(() => {
+      router.push('/login');
+    }, 700);
   };
 
   return (
     <div className="min-h-screen bg-gray-300 dark:bg-gray-900 flex items-center justify-center px-4 sm:px-6 lg:px-8">
-      <div className="w-full max-w-6xl flex flex-col lg:flex-row bg-white dark:bg-gray-800 rounded-2xl shadow-2xl overflow-hidden">
-        
-        {/* Columna Izquierda con imagen desde /public */}
+      <div className="w-full max-w-6xl flex flex-col lg:flex-row bg-white dark:bg-gray-800 rounded-2xl shadow-2xl overflow-hidden relative">
+        {/* Inline message */}
+        {message && (
+          <div
+            role="status"
+            aria-live="polite"
+            className={`absolute top-4 left-1/2 -translate-x-1/2 z-50 w-[90%] max-w-2xl px-4 py-2 rounded-md text-sm font-medium ${
+              messageType === 'success'
+                ? 'bg-green-50 text-green-800 ring-1 ring-green-200'
+                : 'bg-red-50 text-red-800 ring-1 ring-red-200'
+            }`}
+          >
+            {message}
+          </div>
+        )}
+
+        {/* Columna Izquierda con imagen */}
         <div className="hidden lg:block lg:w-5/12 relative">
-          <Image
-            src="/seguridad.webp"
-            alt={t('register.imageAlt')}
-            fill
-            className="object-cover"
-            priority
-          />
+          <Image src="/seguridad.webp" alt={t('register.imageAlt')} fill className="object-cover" priority />
         </div>
 
         {/* Columna Derecha con formulario */}
         <div className="w-full lg:w-7/12 p-6 sm:p-10 flex flex-col justify-center">
-          {/* Logo */}
           <div className="flex justify-center mb-6">
             <Image src="/logo.png" alt="Logo" width={80} height={80} priority />
           </div>
@@ -87,21 +119,17 @@ function RegisterContent() {
             {t('register.title')}
           </h2>
 
-          <form onSubmit={handleSubmit} className="space-y-5">
-            {/* Subir foto */}
+          <form onSubmit={handleSubmit} className="space-y-5" noValidate>
+            {/* Foto */}
             <div className="flex flex-col items-center">
               <label className="cursor-pointer flex flex-col items-center justify-center border-2 border-dashed border-gray-400 rounded-full w-32 h-32 overflow-hidden relative">
                 {preview ? (
+                  // eslint-disable-next-line @next/next/no-img-element
                   <img src={preview} alt="Preview" className="w-full h-full object-cover" />
                 ) : (
                   <FaCamera className="text-gray-500 text-3xl" />
                 )}
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleFileChange}
-                  className="hidden"
-                />
+                <input type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
               </label>
               <p className="text-sm text-gray-500 mt-2">{t('register.uploadPhoto')}</p>
             </div>
@@ -111,17 +139,16 @@ function RegisterContent() {
               name="name"
               value={form.name}
               onChange={handleChange}
-              placeholder={t('register.namePlaceholder')}
+              placeholder={t('register.namePlaceholder') ?? 'Nombre completo'}
             />
             <InputField
               icon={<FaIdCard />}
               name="document"
               value={form.document}
               onChange={handleChange}
-              placeholder={t('register.documentPlaceholder')}
+              placeholder={t('register.documentPlaceholder') ?? 'Documento'}
             />
 
-            {/* Selector de rol */}
             <div className="flex items-center gap-3 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-3 focus-within:ring-2 focus-within:ring-blue-400">
               <FaUserTag className="text-blue-500" />
               <select
@@ -130,10 +157,11 @@ function RegisterContent() {
                 onChange={handleChange}
                 className="w-full bg-transparent outline-none text-gray-800 dark:text-white"
                 required
+                aria-label={t('register.roleSelect') ?? 'Seleccionar rol'}
               >
-                <option value="">{t('register.roleSelect')}</option>
-                <option value="admin">{t('register.adminRole')}</option>
-                <option value="usuario">{t('register.userRole')}</option>
+                <option value="">{t('register.roleSelect') ?? 'Selecciona un rol'}</option>
+                <option value="admin">{t('register.adminRole') ?? 'Administrador'}</option>
+                <option value="usuario">{t('register.userRole') ?? 'Usuario'}</option>
               </select>
             </div>
 
@@ -143,7 +171,7 @@ function RegisterContent() {
               type="email"
               value={form.email}
               onChange={handleChange}
-              placeholder={t('register.emailPlaceholder')}
+              placeholder={t('register.emailPlaceholder') ?? 'Correo electrónico'}
             />
             <InputField
               icon={<FaLock />}
@@ -151,7 +179,7 @@ function RegisterContent() {
               type="password"
               value={form.password}
               onChange={handleChange}
-              placeholder={t('register.passwordPlaceholder')}
+              placeholder={t('register.passwordPlaceholder') ?? 'Contraseña'}
             />
             <InputField
               icon={<FaLock />}
@@ -159,7 +187,7 @@ function RegisterContent() {
               type="password"
               value={form.confirmPassword}
               onChange={handleChange}
-              placeholder={t('register.confirmPasswordPlaceholder')}
+              placeholder={t('register.confirmPasswordPlaceholder') ?? 'Confirmar contraseña'}
             />
 
             <button
@@ -173,10 +201,7 @@ function RegisterContent() {
           <div className="mt-6 text-center">
             <p className="text-sm text-gray-600 dark:text-gray-300">
               {t('register.hasAccount')}{' '}
-              <span
-                onClick={() => router.push('/login')}
-                className="text-blue-600 hover:underline cursor-pointer"
-              >
+              <span onClick={() => router.push('/login')} className="text-blue-600 hover:underline cursor-pointer">
                 {t('register.loginLink')}
               </span>
             </p>
