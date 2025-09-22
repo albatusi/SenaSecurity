@@ -42,13 +42,13 @@ export default function Navbar({ toggleSidebar }: NavbarProps) {
         <ThemeToggle />
         
         {/* Divider visual */}
-        <div className="h-6 w-px bg-gray-300 dark:bg-gray-600"></div>
+        <div className="h-6 w-px bg-white-300 dark:bg-gray-600"></div>
         
         {/* Toggle de idioma */}
         <LanguageToggle />
         
         {/* Divider visual */}
-        <div className="h-6 w-px bg-gray-300 dark:bg-gray-600"></div>
+        <div className="h-6 w-px bg-white-300 dark:bg-gray-600"></div>
         
         {/* Botón Cerrar Sesión */}
         <button

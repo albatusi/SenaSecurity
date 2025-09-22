@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { FaEye, FaEdit, FaTrash, FaSearch } from 'react-icons/fa';
+import { FaEye, FaEdit, FaTrash, FaSearch, FaTimes } from 'react-icons/fa';
 import { useLanguage } from '@/contexts/LanguageContext';
 
 type User = {
@@ -17,6 +17,8 @@ const mockUsers: User[] = [
   { id: 1, name: 'Juan Pérez', email: 'juan@example.com', role: 'usuario', document: '12345678', registeredAt: '2025-08-19' },
   { id: 2, name: 'María López', email: 'maria@example.com', role: 'usuario', document: '87654321', registeredAt: '2025-08-19' },
   { id: 3, name: 'Carlos Gómez', email: 'carlos@example.com', role: 'usuario', document: '11223344', registeredAt: '2025-08-18' },
+  { id: 4, name: 'Ana Fernández', email: 'ana@example.com', role: 'editor', document: '55667788', registeredAt: '2025-08-17' },
+  { id: 5, name: 'Pedro García', email: 'pedro@example.com', role: 'admin', document: '99001122', registeredAt: '2025-08-16' },
 ];
 
 export default function UsersPage() {
@@ -28,14 +30,12 @@ export default function UsersPage() {
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState<Partial<User>>({});
 
-  // Load users from localStorage or fallback to mock
   useEffect(() => {
     try {
       const stored = localStorage.getItem('users');
       if (stored) {
         setUsers(JSON.parse(stored));
       } else {
-        // Seed localStorage so admin can edit/delete persistently
         localStorage.setItem('users', JSON.stringify(mockUsers));
         setUsers(mockUsers);
       }
@@ -45,20 +45,18 @@ export default function UsersPage() {
     }
   }, []);
 
-  // Helpers
   const persist = (next: User[]) => {
     setUsers(next);
     localStorage.setItem('users', JSON.stringify(next));
   };
 
-  const filtered = users.filter(
+  const filteredUsers = users.filter(
     (u) =>
       u.name.toLowerCase().includes(query.toLowerCase()) ||
       (u.email || '').toLowerCase().includes(query.toLowerCase()) ||
       (u.document || '').includes(query)
   );
 
-  // Actions
   const handleView = (u: User) => {
     setSelected(u);
     setIsViewing(true);
@@ -77,7 +75,6 @@ export default function UsersPage() {
     if (!ok) return;
     const next = users.filter((u) => u.id !== id);
     persist(next);
-    // cerrar modal si estaba abierto sobre el borrado
     if (selected?.id === id) {
       setSelected(null);
       setIsViewing(false);
@@ -88,7 +85,6 @@ export default function UsersPage() {
 
   const handleSave = () => {
     if (!selected) return;
-    // validaciones
     if (!editForm.name || !editForm.email) {
       alert(t('users.nameRequired'));
       return;
@@ -107,65 +103,64 @@ export default function UsersPage() {
   };
 
   return (
-    <div className="space-y-6 px-4 sm:px-6 lg:px-8">
+    <main className="space-y-6 p-4 sm:p-6 lg:p-8">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-white-800">{t('users.title')}</h1>
+          <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-100">{t('users.title')}</h1>
           <p className="text-sm text-gray-500 mt-1">{t('users.subtitle')}</p>
         </div>
 
-        <div className="w-full sm:w-80">
-          <label className="relative block">
-            <span className="sr-only">{t('users.searchLabel')}</span>
-            <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400">
-              <FaSearch />
-            </span>
-            <input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder={t('users.searchPlaceholder')}
-              className="placeholder:italic placeholder:text-slate-400 block bg-white w-full border border-slate-200 rounded-md py-2 pl-10 pr-3 shadow-sm focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400"
-            />
-          </label>
+        <div className="w-full sm:w-80 relative">
+          <label className="sr-only" htmlFor="search-input">{t('users.searchLabel')}</label>
+          <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400">
+            <FaSearch />
+          </span>
+          <input
+            id="search-input"
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder={t('users.searchPlaceholder')}
+            className="placeholder:italic placeholder:text-slate-400 block w-full border border-slate-200 rounded-md py-2 pl-10 pr-3 shadow-sm focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+          />
         </div>
       </div>
 
-      {/* Table for md+; cards for small screens */}
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow overflow-hidden">
-        {/* Desktop table */}
+        {/* Desktop Table (Visible on md and larger screens) */}
         <div className="hidden md:block">
           <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
             <thead className="bg-gray-50 dark:bg-gray-900">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">{t('users.nameColumn')}</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">{t('users.emailColumn')}</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">{t('users.documentColumn')}</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">{t('users.roleColumn')}</th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-600 uppercase tracking-wider">{t('users.actionsColumn')}</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 dark:text-gray-300 uppercase tracking-wider">{t('users.nameColumn')}</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 dark:text-gray-300 uppercase tracking-wider">{t('users.emailColumn')}</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 dark:text-gray-300 uppercase tracking-wider">{t('users.documentColumn')}</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 dark:text-gray-300 uppercase tracking-wider">{t('users.roleColumn')}</th>
+                <th className="px-6 py-3 text-right text-xs font-medium text-gray-600 dark:text-gray-300 uppercase tracking-wider">{t('users.actionsColumn')}</th>
               </tr>
             </thead>
             <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-              {filtered.length === 0 ? (
+              {filteredUsers.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="px-6 py-6 text-center text-gray-500">
                     {t('users.noUsersFound')}
                   </td>
                 </tr>
               ) : (
-                filtered.map((u) => (
+                filteredUsers.map((u) => (
                   <tr key={u.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-800 dark:text-gray-100">{u.name}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">{u.email}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">{u.document || '-'}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">{u.role || t('users.userRole')}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium flex justify-end gap-2">
-                      <button onClick={() => handleView(u)} className="px-3 py-1 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-700">
+                      <button onClick={() => handleView(u)} className="p-2 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-gray-100" title={t('users.view')}>
                         <FaEye />
                       </button>
-                      <button onClick={() => handleEdit(u)} className="px-3 py-1 rounded-md bg-blue-600 hover:bg-blue-700 text-white">
+                      <button onClick={() => handleEdit(u)} className="p-2 rounded-md bg-blue-600 hover:bg-blue-700 text-white" title={t('users.edit')}>
                         <FaEdit />
                       </button>
-                      <button onClick={() => handleDelete(u.id)} className="px-3 py-1 rounded-md bg-red-600 hover:bg-red-700 text-white">
+                      <button onClick={() => handleDelete(u.id)} className="p-2 rounded-md bg-red-600 hover:bg-red-700 text-white" title={t('users.delete')}>
                         <FaTrash />
                       </button>
                     </td>
@@ -176,29 +171,29 @@ export default function UsersPage() {
           </table>
         </div>
 
-        {/* Mobile cards */}
+        {/* Mobile Cards (Visible on screens smaller than md) */}
         <div className="md:hidden divide-y divide-gray-200 dark:divide-gray-700">
-          {filtered.length === 0 ? (
+          {filteredUsers.length === 0 ? (
             <div className="p-6 text-center text-gray-500">{t('users.noUsersFound')}</div>
           ) : (
-            filtered.map((u) => (
-              <div key={u.id} className="p-4 flex flex-col gap-2">
+            filteredUsers.map((u) => (
+              <div key={u.id} className="p-4 flex flex-col gap-2 bg-white dark:bg-gray-800">
                 <div className="flex justify-between items-start">
                   <div>
                     <div className="text-base font-semibold text-gray-800 dark:text-gray-100">{u.name}</div>
-                    <div className="text-sm text-gray-500">{u.email}</div>
-                    <div className="text-xs text-gray-400 mt-1">{t('users.document')}: {u.document || '-'}</div>
+                    <div className="text-sm text-gray-500 dark:text-gray-300">{u.email}</div>
+                    <div className="text-xs text-gray-400 mt-1 dark:text-gray-400">{t('users.document')}: {u.document || '-'}</div>
                   </div>
                   <div className="flex flex-col items-end gap-2">
-                    <div className="text-sm text-gray-500">{u.role || t('users.userRole')}</div>
+                    <div className="text-sm text-gray-500 dark:text-gray-300">{u.role || t('users.userRole')}</div>
                     <div className="flex gap-2">
-                      <button onClick={() => handleView(u)} className="p-2 rounded-md bg-slate-100 hover:bg-slate-200">
+                      <button onClick={() => handleView(u)} className="p-2 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-gray-100" title={t('users.view')}>
                         <FaEye />
                       </button>
-                      <button onClick={() => handleEdit(u)} className="p-2 rounded-md bg-blue-600 text-white hover:bg-blue-700">
+                      <button onClick={() => handleEdit(u)} className="p-2 rounded-md bg-blue-600 text-white hover:bg-blue-700" title={t('users.edit')}>
                         <FaEdit />
                       </button>
-                      <button onClick={() => handleDelete(u.id)} className="p-2 rounded-md bg-red-600 text-white hover:bg-red-700">
+                      <button onClick={() => handleDelete(u.id)} className="p-2 rounded-md bg-red-600 text-white hover:bg-red-700" title={t('users.delete')}>
                         <FaTrash />
                       </button>
                     </div>
@@ -212,80 +207,74 @@ export default function UsersPage() {
 
       {/* Modal (view / edit) */}
       {(isViewing || isEditing) && selected && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
           <div className="absolute inset-0 bg-black/50" onClick={closeModal} />
 
-          <div className="relative w-full max-w-2xl bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 z-10">
+          <div className="relative w-full max-w-2xl bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 z-50">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100">
                 {isEditing ? t('users.editUser') : t('users.userDetails')}
               </h3>
-              <button onClick={closeModal} className="text-gray-500 hover:text-gray-700">{t('users.close')}</button>
+              <button onClick={closeModal} className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+                <FaTimes size={20} />
+              </button>
             </div>
 
             {isViewing && (
-              <div className="space-y-3">
+              <div className="space-y-3 text-gray-700 dark:text-gray-300">
                 <p><span className="font-medium">{t('users.name')}:</span> {selected.name}</p>
                 <p><span className="font-medium">{t('users.email')}:</span> {selected.email}</p>
                 <p><span className="font-medium">{t('users.document')}:</span> {selected.document || '-'}</p>
                 <p><span className="font-medium">{t('users.role')}:</span> {selected.role || t('users.userRole')}</p>
                 <p><span className="font-medium">{t('users.registeredAt')}:</span> {selected.registeredAt || '-'}</p>
-
-                <div className="flex gap-3 mt-4">
-                  <button onClick={() => { setIsViewing(false); setIsEditing(true); setEditForm({ ...selected }); }} className="px-4 py-2 bg-blue-600 text-white rounded-md">{t('users.edit')}</button>
-                  <button onClick={() => handleDelete(selected.id)} className="px-4 py-2 bg-red-600 text-white rounded-md">{t('users.delete')}</button>
-                </div>
               </div>
             )}
 
             {isEditing && (
               <div className="space-y-4">
                 <label className="block">
-                  <span className="text-sm text-gray-600">{t('users.name')}</span>
+                  <span className="text-sm text-gray-600 dark:text-gray-400">{t('users.name')}</span>
                   <input
                     value={editForm.name || ''}
                     onChange={(e) => setEditForm((s) => ({ ...s, name: e.target.value }))}
-                    className="mt-1 block w-full border rounded-md px-3 py-2 bg-white dark:bg-gray-900"
+                    className="mt-1 block w-full border rounded-md px-3 py-2 bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400"
                   />
                 </label>
-
                 <label className="block">
-                  <span className="text-sm text-gray-600">{t('users.email')}</span>
+                  <span className="text-sm text-gray-600 dark:text-gray-400">{t('users.email')}</span>
                   <input
+                    type="email"
                     value={editForm.email || ''}
                     onChange={(e) => setEditForm((s) => ({ ...s, email: e.target.value }))}
-                    className="mt-1 block w-full border rounded-md px-3 py-2 bg-white dark:bg-gray-900"
+                    className="mt-1 block w-full border rounded-md px-3 py-2 bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400"
                   />
                 </label>
-
                 <label className="block">
-                  <span className="text-sm text-gray-600">{t('users.document')}</span>
+                  <span className="text-sm text-gray-600 dark:text-gray-400">{t('users.document')}</span>
                   <input
                     value={editForm.document || ''}
                     onChange={(e) => setEditForm((s) => ({ ...s, document: e.target.value }))}
-                    className="mt-1 block w-full border rounded-md px-3 py-2 bg-white dark:bg-gray-900"
+                    className="mt-1 block w-full border rounded-md px-3 py-2 bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400"
                   />
                 </label>
-
                 <label className="block">
-                  <span className="text-sm text-gray-600">{t('users.role')}</span>
+                  <span className="text-sm text-gray-600 dark:text-gray-400">{t('users.role')}</span>
                   <input
                     value={editForm.role || ''}
                     onChange={(e) => setEditForm((s) => ({ ...s, role: e.target.value }))}
-                    className="mt-1 block w-full border rounded-md px-3 py-2 bg-white dark:bg-gray-900"
+                    className="mt-1 block w-full border rounded-md px-3 py-2 bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400"
                     placeholder={t('users.rolePlaceholder')}
                   />
                 </label>
-
-                <div className="flex justify-end gap-3 mt-2">
-                  <button onClick={closeModal} className="px-4 py-2 rounded-md border">{t('users.cancel')}</button>
-                  <button onClick={handleSave} className="px-4 py-2 rounded-md bg-blue-600 text-white">{t('users.save')}</button>
-                </div>
               </div>
             )}
+            <div className="flex justify-end gap-3 mt-6">
+              <button onClick={closeModal} className="px-4 py-2 rounded-md border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition">{t('users.cancel')}</button>
+              <button onClick={handleSave} className="px-4 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700 transition">{t('users.save')}</button>
+            </div>
           </div>
         </div>
       )}
-    </div>
+    </main>
   );
 }

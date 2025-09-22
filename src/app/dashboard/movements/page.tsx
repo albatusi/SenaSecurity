@@ -62,20 +62,20 @@ export default function MovementsPage() {
 
   return (
     <div className="space-y-10">
-      {/* Encabezado */}
-      <div className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white p-8 rounded-2xl shadow-lg">
+      {/* Encabezado - Colores y gradientes adaptados para modo oscuro */}
+      <div className="bg-gradient-to-r from-cyan-500 to-blue-600 dark:from-gray-800 dark:to-gray-900 text-white p-8 rounded-2xl shadow-lg">
         <h2 className="text-4xl font-extrabold flex items-center gap-3">
           <FaCarSide className="text-5xl drop-shadow-md" />
           {t('movements.title')}
         </h2>
-        <p className="text-gray-100 mt-2 text-lg">
+        <p className="text-gray-100 dark:text-gray-300 mt-2 text-lg">
           {horaActual.toLocaleDateString()} —{' '}
           <span className="font-semibold">{horaActual.toLocaleTimeString()}</span>
         </p>
       </div>
 
-      {/* Formulario */}
-      <div className="bg-gradient-to-br from-white to-gray-50 dark:from-gray-900 dark:to-gray-800 p-6 rounded-2xl shadow-md space-y-4 border border-gray-200 dark:border-gray-700">
+      {/* Formulario - Colores y gradientes adaptados para modo oscuro */}
+      <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-md space-y-4 border border-gray-200 dark:border-gray-700">
         <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-3">
           {t('movements.registerNew')}
         </h3>
@@ -85,7 +85,7 @@ export default function MovementsPage() {
             placeholder={t('movements.platePlaceholder')}
             value={placa}
             onChange={(e) => setPlaca(e.target.value)}
-            className="p-3 border border-gray-300 dark:border-gray-600 rounded-xl w-full sm:w-72 focus:outline-none focus:ring-2 focus:ring-cyan-500 dark:bg-gray-800 dark:text-white shadow-sm"
+            className="p-3 border border-gray-300 dark:border-gray-700 rounded-xl w-full sm:w-72 focus:outline-none focus:ring-2 focus:ring-cyan-500 dark:bg-gray-900 dark:text-white shadow-sm"
           />
           <div className="flex gap-3">
             <button
@@ -104,8 +104,8 @@ export default function MovementsPage() {
         </div>
       </div>
 
-      {/* Historial */}
-      <div className="bg-gradient-to-br from-white to-gray-50 dark:from-gray-900 dark:to-gray-800 p-6 rounded-2xl shadow-lg overflow-x-auto border border-gray-200 dark:border-gray-700">
+      {/* Historial - Colores y gradientes adaptados para modo oscuro */}
+      <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg overflow-x-auto border border-gray-200 dark:border-gray-700">
         <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4">
           {t('movements.history')}
         </h3>
@@ -116,7 +116,7 @@ export default function MovementsPage() {
         ) : (
           <table className="w-full border-collapse rounded-xl overflow-hidden">
             <thead>
-              <tr className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white">
+              <tr className="bg-gradient-to-r from-blue-500 to-indigo-600 dark:from-gray-700 dark:to-gray-900 text-white">
                 <th className="p-4 text-left">{t('movements.plate')}</th>
                 <th className="p-4 text-left">{t('movements.type')}</th>
                 <th className="p-4 text-left">{t('movements.time')}</th>
@@ -140,8 +140,8 @@ export default function MovementsPage() {
                     <span
                       className={`px-3 py-1 rounded-full text-sm font-semibold ${
                         m.tipo === 'Entrada'
-                          ? 'bg-green-100 text-green-700'
-                          : 'bg-red-100 text-red-700'
+                          ? 'bg-green-100 text-green-700 dark:bg-green-700 dark:text-green-100'
+                          : 'bg-red-100 text-red-700 dark:bg-red-700 dark:text-red-100'
                       }`}
                     >
                       {m.tipo}

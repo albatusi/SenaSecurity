@@ -15,7 +15,6 @@ RUN npm ci
 # Copiar configuración de Next.js
 COPY next.config.ts ./
 COPY tsconfig.json ./
-COPY tailwind.config.ts ./
 COPY postcss.config.mjs ./
 
 # Copiar archivos públicos (logos e imágenes) - importante para desarrollo

@@ -107,9 +107,20 @@ export default function VehiclesPage() {
     }
   };
 
-  const validatePlate = (plate: string) => {
+  // FUNCIÓN DE VALIDACIÓN MEJORADA
+  const validatePlate = (plate: string): string | null => {
     const cleaned = plate.trim().toUpperCase();
-    return /^[A-Z0-9-]{3,8}$/.test(cleaned) ? cleaned : null;
+
+    // Regex para placas de vehículos en Colombia (ej: ABC-123 o ABC-12D)
+    const carPlateRegex = /^[A-Z]{3}-?\d{3}$/;
+    const motorcyclePlateRegex = /^[A-Z]{3}-?\d{2}[A-Z]$/;
+
+    if (carPlateRegex.test(cleaned) || motorcyclePlateRegex.test(cleaned)) {
+      // Si la placa es válida, se devuelve sin guiones para guardar
+      return cleaned.replace(/-/g, '');
+    }
+
+    return null; // Retorna null si no coincide con los formatos
   };
 
   const resetForm = () => setForm({ name: '', plate: '', type: 'carro' });

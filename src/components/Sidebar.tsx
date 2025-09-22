@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   FaHome,
   FaCar,
@@ -37,6 +37,33 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
   const [open, setOpen] = useState(isOpen);
   // estado para grupos desplegables (por ejemplo "Usuarios")
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    setOpen(isOpen);
+  }, [isOpen]);
+
+  const handleClose = () => {
+    setOpen(false);
+    if (onClose) {
+      onClose();
+    }
+  };
+
+  useEffect(() => {
+    const handleEscapeKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        handleClose();
+      }
+    };
+
+    if (open) {
+      document.addEventListener('keydown', handleEscapeKey);
+    }
+
+    return () => {
+      document.removeEventListener('keydown', handleEscapeKey);
+    };
+  }, [open, handleClose]);
 
   const navItems: NavItem[] = [
     { name: t('sidebar.home'), path: '/dashboard', icon: <FaHome /> },
@@ -74,6 +101,22 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
         </button>
       )}
 
+      {/* Overlay: sutil y con blur para que el contenido no se "apague" */}
+      {open && (
+        <div
+          aria-hidden="true"
+          onClick={handleClose}
+          className="fixed inset-0 z-30 flex items-start"
+        >
+          <div
+            // overlay visual: sutil + blur; mantiene pointer-events para capturar el click y cerrar
+            className="absolute inset-0 w-full h-full transition-colors duration-200 ease-in-out
+                       bg-black/10 dark:bg-white/5 backdrop-blur-sm"
+            style={{ willChange: 'background-color, opacity' }}
+          />
+        </div>
+      )}
+
       {/* Sidebar */}
       <aside
         className={`fixed top-0 left-0 h-full w-64 bg-white dark:bg-gray-900 shadow-lg transform ${
@@ -85,14 +128,14 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
           <div className="flex items-center gap-3">
             <Image src="/logo.png" alt="Logo" width={56} height={56} className="rounded-md" />
             <div>
-              {/* Nombre corregido */}
               <span className="text-lg font-bold text-gray-800 dark:text-white">{t('sidebar.appName')}</span>
               <div className="text-xs text-gray-500 dark:text-gray-400">{t('sidebar.adminPanel')}</div>
             </div>
           </div>
+          {/* Mantengo el cierre con toggle en el header, pero puedes removerlo si no quieres 'X' */}
           <button
             onClick={handleToggle}
-            aria-label={t('sidebar.closeMenu')}
+            aria-label="Cerrar menú"
             className="text-gray-500 hover:text-gray-800 dark:hover:text-gray-200"
           >
             <FaTimes size={20} />
@@ -100,14 +143,12 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
         </div>
 
         {/* Navegación */}
-        <nav className="mt-6 px-2 space-y-2">
+        <nav className="mt-6 px-2 space-y-2 overflow-y-auto h-[calc(100vh-80px)]">
           {navItems.map((item) => {
             const isActive = item.path ? pathname === item.path : false;
 
-            // Si tiene children --> render grupo desplegable
             if (item.children && item.children.length > 0) {
               const groupOpen = !!openGroups[item.name];
-              // detectar si alguna ruta hija está activa
               const childActive = item.children.some((c) => pathname === c.path);
 
               return (
@@ -128,7 +169,6 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
                     <span>{groupOpen ? <FaChevronUp /> : <FaChevronDown />}</span>
                   </button>
 
-                  {/* Sub-items */}
                   {groupOpen && (
                     <div className="mt-2 ml-4 space-y-1">
                       {item.children.map((child) => {
@@ -142,10 +182,7 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
                                 ? 'bg-blue-600 text-white'
                                 : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'
                             }`}
-                            onClick={() => {
-                              setOpen(false);
-                              if (onClose) onClose();
-                            }}
+                            onClick={handleClose}
                           >
                             <span className="text-base">{child.icon}</span>
                             <span>{child.name}</span>
@@ -158,7 +195,6 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
               );
             }
 
-            // Item normal (sin children)
             return (
               <Link
                 key={item.path}
@@ -168,10 +204,7 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
                     ? 'bg-blue-600 text-white shadow-md'
                     : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'
                 }`}
-                onClick={() => {
-                  setOpen(false);
-                  if (onClose) onClose();
-                }}
+                onClick={handleClose}
               >
                 <span className="text-lg">{item.icon}</span>
                 <span>{item.name}</span>
