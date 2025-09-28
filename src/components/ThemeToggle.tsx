@@ -4,7 +4,7 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { useState, useEffect } from 'react';
 
 export default function ThemeToggle() {
-  const { theme, toggleTheme, setTheme, mounted } = useTheme();
+  const { theme, actualTheme, toggleTheme, setTheme, mounted } = useTheme();
   const { t } = useLanguage();
   const [isAnimating, setIsAnimating] = useState(false);
 
@@ -19,70 +19,97 @@ export default function ThemeToggle() {
     setTimeout(() => setIsAnimating(false), 300);
   };
 
-  // Si no está montado todavía (no sabemos el tema real), renderizamos el botón
-  // pero sin contenido dependiente del tema para evitar mismatch.
-  const content = mounted ? (
-    <>
-      <span
-        className={`text-sm font-medium transition-all duration-300 cursor-pointer select-none ${
-          theme === 'light'
-            ? 'text-yellow-600 dark:text-yellow-400 scale-110'
-            : 'text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300'
-        }`}
-        onClick={() => setTheme('light')}
-        title={t('theme.light')}
-      >
-        ☀️
-      </span>
+  // obtiene el siguiente tema en el ciclo
+  const getNextTheme = () => {
+    if (theme === 'light') return 'dark';
+    if (theme === 'dark') return 'auto';
+    return 'light';
+  };
 
+  // icono basado en el tema actual
+  const getThemeIcon = () => {
+    if (theme === 'auto') return '🌓'; // Auto
+    return actualTheme === 'light' ? '☀️' : '🌙';
+  };
+
+  // texto descriptivo del tema
+  const getThemeText = () => {
+    if (theme === 'auto') return t('theme.auto') || 'Automático';
+    return theme === 'light' ? (t('theme.light') || 'Modo claro') : (t('theme.dark') || 'Modo oscuro');
+  };
+
+  const content = mounted ? (
+    <div className="flex items-center gap-3">
+      {/* Botón principal con tema actual */}
       <div className="relative">
         <button
           onClick={handleToggle}
-          className={`relative w-14 h-7 rounded-full p-1 transition-all duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 hover:shadow-lg ${
-            theme === 'dark'
-              ? 'bg-slate-700 shadow-slate-200 dark:shadow-slate-900'
-              : 'bg-yellow-200 shadow-yellow-200'
+          className={`relative flex items-center gap-2 px-4 py-2 rounded-lg transition-all duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 hover:shadow-md ${
+            theme === 'auto'
+              ? 'bg-gradient-to-r from-blue-500 to-purple-500 text-white shadow-md'
+              : actualTheme === 'dark'
+                ? 'bg-slate-700 text-white shadow-slate-200 dark:shadow-slate-900'
+                : 'bg-yellow-200 text-gray-800 shadow-yellow-200'
           } ${isAnimating ? 'scale-105' : 'scale-100'}`}
-          aria-label={`${t('theme.toggleTo')} ${theme === 'light' ? t('theme.dark') : t('theme.light')}`}
-          title={`${t('theme.toggleTo')} ${theme === 'light' ? t('theme.dark') : t('theme.light')}`}
+          aria-label={`Tema actual: ${getThemeText()}. Clic para cambiar a ${getNextTheme()}`}
+          title={`Tema: ${getThemeText()}. Clic para alternar`}
         >
-          <div
-            className={`w-5 h-5 bg-white rounded-full shadow-lg transition-all duration-300 ease-in-out flex items-center justify-center ${
-              theme === 'dark' ? 'translate-x-7' : 'translate-x-0'
-            } ${isAnimating ? 'scale-110' : 'scale-100'}`}
-          >
-            <span className="text-xs">{theme === 'light' ? '☀️' : '🌙'}</span>
-          </div>
-          <div className="absolute inset-0 rounded-full pointer-events-none">
-            <div className={`w-full h-full rounded-full transition-opacity duration-300 ${
-              theme === 'dark'
-                ? 'bg-gradient-to-r from-slate-600 to-slate-800 opacity-50'
-                : 'bg-gradient-to-r from-yellow-100 to-yellow-300 opacity-30'
-            }`} />
-          </div>
+          <span className="text-lg">{getThemeIcon()}</span>
+          <span className="text-sm font-medium hidden sm:inline">{getThemeText()}</span>
         </button>
       </div>
 
-      <span
-        className={`text-sm font-medium transition-all duration-300 cursor-pointer select-none ${
-          theme === 'dark'
-            ? 'text-slate-300 dark:text-slate-200 scale-110'
-            : 'text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300'
-        }`}
-        onClick={() => setTheme('dark')}
-        title={t('theme.dark')}
-      >
-        🌙
-      </span>
-    </>
+      {/* Indicadores rápidos de selección directa */}
+      <div className="flex gap-1 bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
+        <button
+          onClick={() => setTheme('light')}
+          className={`p-1.5 rounded text-xs transition-all duration-200 ${
+            theme === 'light'
+              ? 'bg-yellow-400 text-gray-900 shadow-sm scale-105'
+              : 'hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-600 dark:text-gray-300'
+          }`}
+          title={t('theme.light') || 'Modo claro'}
+          aria-label={`Cambiar a ${t('theme.light') || 'Modo claro'}`}
+        >
+          ☀️
+        </button>
+        <button
+          onClick={() => setTheme('dark')}
+          className={`p-1.5 rounded text-xs transition-all duration-200 ${
+            theme === 'dark'
+              ? 'bg-slate-600 text-white shadow-sm scale-105'
+              : 'hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-600 dark:text-gray-300'
+          }`}
+          title={t('theme.dark') || 'Modo oscuro'}
+          aria-label={`Cambiar a ${t('theme.dark') || 'Modo oscuro'}`}
+        >
+          🌙
+        </button>
+        <button
+          onClick={() => setTheme('auto')}
+          className={`p-1.5 rounded text-xs transition-all duration-200 ${
+            theme === 'auto'
+              ? 'bg-gradient-to-r from-blue-500 to-purple-500 text-white shadow-sm scale-105'
+              : 'hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-600 dark:text-gray-300'
+          }`}
+          title={t('theme.auto') || 'Automático'}
+          aria-label={`Cambiar a ${t('theme.auto') || 'Automático'}`}
+        >
+          🌓
+        </button>
+      </div>
+    </div>
   ) : (
     // placeholder neutral mientras esperamos mounted -> evita mismatch
-    <>
-      <span className="w-5 inline-block" />
-      <button className="relative w-14 h-7 rounded-full p-1 bg-gray-200 dark:bg-gray-700 opacity-70" aria-hidden />
-      <span className="w-5 inline-block" />
-    </>
+    <div className="flex items-center gap-3">
+      <div className="w-20 h-8 bg-gray-200 dark:bg-gray-700 rounded-lg opacity-70 animate-pulse" />
+      <div className="flex gap-1 bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
+        <div className="w-6 h-6 bg-gray-200 dark:bg-gray-600 rounded opacity-70" />
+        <div className="w-6 h-6 bg-gray-200 dark:bg-gray-600 rounded opacity-70" />
+        <div className="w-6 h-6 bg-gray-200 dark:bg-gray-600 rounded opacity-70" />
+      </div>
+    </div>
   );
 
-  return <div className="flex items-center gap-3">{content}</div>;
+  return content;
 }

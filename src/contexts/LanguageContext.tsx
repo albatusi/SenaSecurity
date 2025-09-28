@@ -295,6 +295,15 @@ const translations = {
     'form.loading': 'Cargando...',
     'form.success': 'Operación exitosa',
     'form.error': 'Error en la operación',
+
+    //perfil
+    'profile.title': 'Perfil',
+    'profile.nameLabel': 'Nombre completo',
+    'profile.emailLabel': 'Correo electrónico',
+    'profile.documentLabel': 'Documento de identidad',
+    'profile.noData': 'No hay datos de usuario',
+    'profile.loading': 'Cargando datos del perfil...',
+    'profile.logout': 'Cerrar sesión',
     
     // Theme Toggle
     'theme.light': 'Modo claro',
@@ -583,6 +592,15 @@ const translations = {
     'form.loading': 'Loading...',
     'form.success': 'Operation successful',
     'form.error': 'Operation error',
+
+    //profile
+    'profile.title': 'Profile',
+    'profile.nameLabel': 'Full name',
+    'profile.emailLabel': 'Email',
+    'profile.documentLabel': 'Identity document',
+    'profile.noData': 'No user data available',
+    'profile.loading': 'Loading profile data...',
+    'profile.logout': 'Logout',
     
     // Theme Toggle
     'theme.light': 'Light mode',

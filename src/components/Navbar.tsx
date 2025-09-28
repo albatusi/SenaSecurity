@@ -2,7 +2,6 @@
 import Image from 'next/image';
 import { useLanguage } from '@/contexts/LanguageContext';
 import LanguageToggle from './LanguageToggle';
-import ThemeToggle from './ThemeToggle';
 
 interface NavbarProps {
   toggleSidebar: () => void;
@@ -28,7 +27,7 @@ export default function Navbar({ toggleSidebar }: NavbarProps) {
             alt="Logo"
             width={48}
             height={48}
-            className="object-contain" // ⬅️ logo más grande y proporcionado
+            className="object-contain" // ⬅ logo más grande y proporcionado
           />
           {/* Nombre del proyecto */}
           <span className="text-xl font-bold text-gray-800 dark:text-white">
@@ -38,17 +37,11 @@ export default function Navbar({ toggleSidebar }: NavbarProps) {
 
       {/* Centro-Derecha: Controles de usuario */}
       <div className="flex items-center gap-4">
-        {/* Toggle de tema */}
-        <ThemeToggle />
-        
-        {/* Divider visual */}
-        <div className="h-6 w-px bg-white-300 dark:bg-gray-600"></div>
-        
         {/* Toggle de idioma */}
         <LanguageToggle />
         
         {/* Divider visual */}
-        <div className="h-6 w-px bg-white-300 dark:bg-gray-600"></div>
+        <div className="h-6 w-px bg-gray-300 dark:bg-gray-600"></div>
         
         {/* Botón Cerrar Sesión */}
         <button
@@ -62,5 +55,5 @@ export default function Navbar({ toggleSidebar }: NavbarProps) {
         </button>
       </div>
     </header>
-  );
+  );
 }
