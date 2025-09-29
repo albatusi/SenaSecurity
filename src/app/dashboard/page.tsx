@@ -1,8 +1,31 @@
 'use client';
-import { useEffect, useState, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { FaUsers, FaCar, FaCalendarDay, FaArrowRight } from 'react-icons/fa';
 import { useLanguage } from '@/contexts/LanguageContext';
+
+type User = {
+  id: number;
+  name: string;
+  email: string;
+  role: 'user' | 'admin' | string;
+  status: 'active' | 'blocked' | string;
+  registeredAt: string; // YYYY-MM-DD
+};
+
+type Car = {
+  id: number;
+  plate: string;
+  owner: string;
+  registeredAt: string; // YYYY-MM-DD
+};
+
+// Rutas fuera del componente para evitar recrearlas en cada render
+const ROUTES = {
+  profile: '/dashboard/profile',
+  config: '/dashboard/configuration',
+  vehicles: '/dashboard/vehicles',
+};
 
 // 🔹 Usuario autenticado (simulación)
 const currentUser = {
@@ -10,15 +33,15 @@ const currentUser = {
   role: 'admin',
 };
 
-// 🔹 Datos simulados
-const mockUsers = [
+// 🔹 Datos simulados (tipados)
+const mockUsers: User[] = [
   { id: 1, name: 'Juan Pérez', email: 'juan@example.com', role: 'user', status: 'active', registeredAt: '2025-08-19' },
   { id: 2, name: 'María López', email: 'maria@example.com', role: 'user', status: 'active', registeredAt: '2025-08-19' },
   { id: 3, name: 'Carlos Gómez', email: 'carlos@example.com', role: 'user', status: 'blocked', registeredAt: '2025-08-18' },
   { id: 4, name: 'Ana Torres', email: 'ana@example.com', role: 'admin', status: 'active', registeredAt: '2025-08-17' },
 ];
 
-const mockCars = [
+const mockCars: Car[] = [
   { id: 1, plate: 'ABC123', owner: 'Juan Pérez', registeredAt: '2025-08-19' },
   { id: 2, plate: 'XYZ789', owner: 'María López', registeredAt: '2025-08-18' },
   { id: 3, plate: 'LMN456', owner: 'Carlos Gómez', registeredAt: '2025-08-19' },
@@ -27,40 +50,34 @@ const mockCars = [
 export default function DashboardAdmin() {
   const router = useRouter();
   const { t } = useLanguage();
-  const [users, setUsers] = useState<typeof mockUsers>([]);
+  const [users, setUsers] = useState<User[]>([]);
   const [search, setSearch] = useState('');
   const liveRef = useRef<HTMLDivElement | null>(null);
 
-  // rutas de destino (ajusta si tus rutas tienen nombres distintos)
-  const ROUTES = {
-    profile: '/dashboard/profile',
-    config: '/dashboard/configuration',
-    vehicles: '/dashboard/vehicles',
-  };
+  // Determinamos rol sin hacer retornos tempranos antes de declarar hooks
+  const isAdmin = currentUser.role === 'admin';
 
+  // Inicialización: cargar datos y prefetch. También redirigimos desde effect si no es admin.
   useEffect(() => {
-    if (currentUser.role !== 'admin') {
-      router.push('/no-autorizado');
-    } else {
-      // mostramos solo usuarios con role 'user'
-      setUsers(mockUsers.filter((user) => user.role === 'user'));
-      // prefetch de rutas para navegación más rápida (si Next la soporta)
-      try {
-        // router.prefetch existe en varias versiones; si no está, esta llamada no rompe
-        // @ts-ignore
-        router.prefetch?.(ROUTES.profile);
-        // @ts-ignore
-        router.prefetch?.(ROUTES.config);
-        // @ts-ignore
-        router.prefetch?.(ROUTES.vehicles);
-      } catch {
-        // no hacemos nada si prefetch no está disponible
-      }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    setUsers(mockUsers.filter((u) => u.role === 'user'));
 
-  if (currentUser.role !== 'admin') return null;
+    try {
+      // tipado seguro para prefetch
+      const routerWithPrefetch = router as unknown as { prefetch?: (path: string) => Promise<void> | void };
+      if (typeof routerWithPrefetch.prefetch === 'function') {
+        routerWithPrefetch.prefetch(ROUTES.profile);
+        routerWithPrefetch.prefetch(ROUTES.config);
+        routerWithPrefetch.prefetch(ROUTES.vehicles);
+      }
+    } catch {
+      // no romper si prefetch no existe
+    }
+
+    if (!isAdmin) {
+      // redirige usuarios no autorizados (desde effect)
+      router.push('/no-autorizado');
+    }
+  }, [router, isAdmin]);
 
   // Filtrar por nombre (máx 5 resultados para el dashboard)
   const filteredUsers = users
@@ -76,28 +93,27 @@ export default function DashboardAdmin() {
   const usersToday = users.filter((u) => u.registeredAt === today).length;
   const carsToday = mockCars.filter((c) => c.registeredAt === today).length;
 
-  // función única para navegar y anunciar (accesible)
-  const navigateAndAnnounce = (path: string, label: string) => {
-    // announce for screen readers
-    if (liveRef.current) {
-      liveRef.current.textContent = `${label} — ${t('dashboard.navigating') ?? 'Navegando...'}`;
-    }
-    // small delay so SR can pick up message (and show quick UI feedback)
-    setTimeout(() => {
-      router.push(path);
-    }, 120); // muy corto, evita parecer lento
-  };
+  // función única para navegar y anunciar (accesible) — estable con useCallback
+  const navigateAndAnnounce = useCallback(
+    (path: string, label: string) => {
+      if (liveRef.current) {
+        liveRef.current.textContent = `${label} — ${t('dashboard.navigating') ?? 'Navegando...'}`;
+      }
+      setTimeout(() => {
+        router.push(path);
+      }, 120);
+    },
+    [router, t]
+  );
 
   // --- Global keyboard shortcuts (Alt/Meta + 1/2/3) ---
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
-      // Ignorar cuando se escriba en inputs/select/textarea o contenido editable
       const active = document.activeElement as HTMLElement | null;
       const tag = active?.tagName?.toLowerCase() ?? '';
       const editing = ['input', 'textarea', 'select'].includes(tag) || active?.isContentEditable;
       if (editing) return;
 
-      // Soportamos Alt (Windows/Linux) y Meta (⌘) en Mac.
       const modifier = e.altKey || e.metaKey;
       if (modifier && !e.shiftKey && !e.ctrlKey) {
         switch (e.key) {
@@ -121,20 +137,15 @@ export default function DashboardAdmin() {
 
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [router, t]);
+  }, [navigateAndAnnounce, t]);
+
+  // Si no es admin no se renderiza la UI (ya redirigimos desde el effect)
+  if (!isAdmin) return null;
 
   return (
     <div className="space-y-8 px-4 sm:px-6 lg:px-8">
-      {/* Live region for screen readers */}
-      <div
-        ref={liveRef}
-        aria-live="polite"
-        aria-atomic="true"
-        className="sr-only"
-      />
+      <div ref={liveRef} aria-live="polite" aria-atomic="true" className="sr-only" />
 
-      {/* Encabezado */}
       <div className="text-center space-y-2">
         <h1 className="text-3xl font-semibold text-slate-800 dark:text-slate-100">
           <span className="inline-flex items-center gap-2">
@@ -142,12 +153,10 @@ export default function DashboardAdmin() {
             {t('dashboard.homePanel')}
           </span>
         </h1>
-        <p className="text-sm text-slate-500 dark:text-slate-400">
-          {t('dashboard.quickSummary')}
-        </p>
+        <p className="text-sm text-slate-500 dark:text-slate-400">{t('dashboard.quickSummary')}</p>
       </div>
 
-      {/* KPIs */}
+      {/* KPIs y resto de UI (sin cambios funcionales) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         <div className="rounded-xl p-4 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 shadow-sm">
           <p className="text-xs text-slate-500 dark:text-slate-400">{t('dashboard.totalUsersLabel')}</p>
@@ -163,7 +172,6 @@ export default function DashboardAdmin() {
         </div>
       </div>
 
-      {/* Autos registrados */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="rounded-xl p-4 bg-amber-50 dark:bg-amber-900/10 border border-amber-100 dark:border-amber-700 shadow-sm text-center">
           <p className="text-xs text-amber-700 dark:text-amber-300">{t('dashboard.registeredCars')}</p>
@@ -175,7 +183,6 @@ export default function DashboardAdmin() {
         </div>
       </div>
 
-      {/* Accesos rápidos */}
       <div>
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-xl font-medium text-slate-700 dark:text-slate-200">{t('dashboard.quickAccessTitle')}</h2>
@@ -199,7 +206,9 @@ export default function DashboardAdmin() {
           >
             <FaUsers className="text-slate-600 dark:text-slate-300 text-3xl" />
             <div className="font-semibold text-slate-800 dark:text-slate-100">{t('dashboard.profileTitle')}</div>
-            <div id="q-access-profile-desc" className="text-sm text-slate-500 dark:text-slate-400">{t('dashboard.profileDescription')}</div>
+            <div id="q-access-profile-desc" className="text-sm text-slate-500 dark:text-slate-400">
+              {t('dashboard.profileDescription')}
+            </div>
             <FaArrowRight className="text-slate-400 dark:text-slate-500 mt-2" />
           </button>
 
@@ -212,7 +221,9 @@ export default function DashboardAdmin() {
           >
             <FaCalendarDay className="text-slate-600 dark:text-slate-300 text-3xl" />
             <div className="font-semibold text-slate-800 dark:text-slate-100">{t('dashboard.configurationTitle')}</div>
-            <div id="q-access-config-desc" className="text-sm text-slate-500 dark:text-slate-400">{t('dashboard.configurationDescription')}</div>
+            <div id="q-access-config-desc" className="text-sm text-slate-500 dark:text-slate-400">
+              {t('dashboard.configurationDescription')}
+            </div>
             <FaArrowRight className="text-slate-400 dark:text-slate-500 mt-2" />
           </button>
 
@@ -225,13 +236,14 @@ export default function DashboardAdmin() {
           >
             <FaCar className="text-slate-600 dark:text-slate-300 text-3xl" />
             <div className="font-semibold text-slate-800 dark:text-slate-100">{t('dashboard.vehiclesTitle')}</div>
-            <div id="q-access-vehicles-desc" className="text-sm text-slate-500 dark:text-slate-400">{t('dashboard.vehiclesDescription')}</div>
+            <div id="q-access-vehicles-desc" className="text-sm text-slate-500 dark:text-slate-400">
+              {t('dashboard.vehiclesDescription')}
+            </div>
             <FaArrowRight className="text-slate-400 dark:text-slate-500 mt-2" />
           </button>
         </div>
       </div>
 
-      {/* Buscador */}
       <div className="flex justify-end">
         <input
           type="text"
@@ -243,7 +255,6 @@ export default function DashboardAdmin() {
         />
       </div>
 
-      {/* Tabla simplificada (solo nombre) */}
       <div className="bg-white dark:bg-slate-800 shadow-md rounded-2xl overflow-hidden border border-slate-100 dark:border-slate-700">
         <table className="w-full text-left" role="table" aria-label={t('dashboard.usersTableAria') ?? 'Users'}>
           <thead className="bg-slate-50 dark:bg-slate-900">
@@ -263,9 +274,7 @@ export default function DashboardAdmin() {
               ))
             ) : (
               <tr>
-                <td className="px-6 py-4 text-center text-slate-500 dark:text-slate-400">
-                  {t('dashboard.noUsersFound')}
-                </td>
+                <td className="px-6 py-4 text-center text-slate-500 dark:text-slate-400">{t('dashboard.noUsersFound')}</td>
               </tr>
             )}
           </tbody>

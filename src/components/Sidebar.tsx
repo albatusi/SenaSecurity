@@ -1,7 +1,8 @@
 'use client';
+
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useState, useEffect } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   FaHome,
   FaCar,
@@ -34,21 +35,20 @@ type NavItem = {
 export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
   const pathname = usePathname();
   const { t } = useLanguage();
-  const [open, setOpen] = useState(isOpen);
-  // estado para grupos desplegables (por ejemplo "Usuarios")
+  const [open, setOpen] = useState<boolean>(isOpen);
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     setOpen(isOpen);
   }, [isOpen]);
 
-  const handleClose = () => {
+  // handleClose memoizado para evitar recreación en cada render
+  const handleClose = useCallback(() => {
     setOpen(false);
-    if (onClose) {
-      onClose();
-    }
-  };
+    if (onClose) onClose();
+  }, [onClose]);
 
+  // Escuchar Escape para cerrar — dependencias estables
   useEffect(() => {
     const handleEscapeKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
@@ -82,7 +82,7 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
     { name: t('sidebar.configuration'), path: '/dashboard/configuration', icon: <FaCog /> },
   ];
 
-  const handleToggle = () => setOpen(!open);
+  const handleToggle = () => setOpen((v) => !v);
 
   const toggleGroup = (groupName: string) => {
     setOpenGroups((prev) => ({ ...prev, [groupName]: !prev[groupName] }));
@@ -101,7 +101,7 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
         </button>
       )}
 
-      {/* Overlay: sutil y con blur para que el contenido no se "apague" */}
+      {/* Overlay: sutil y con blur */}
       {open && (
         <div
           aria-hidden="true"
@@ -109,9 +109,7 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
           className="fixed inset-0 z-30 flex items-start"
         >
           <div
-            // overlay visual: sutil + blur; mantiene pointer-events para capturar el click y cerrar
-            className="absolute inset-0 w-full h-full transition-colors duration-200 ease-in-out
-                       bg-black/10 dark:bg-white/5 backdrop-blur-sm"
+            className="absolute inset-0 w-full h-full transition-colors duration-200 ease-in-out bg-black/10 dark:bg-white/5 backdrop-blur-sm"
             style={{ willChange: 'background-color, opacity' }}
           />
         </div>
@@ -119,9 +117,9 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
 
       {/* Sidebar */}
       <aside
-        className={`fixed top-0 left-0 h-full w-64 bg-white dark:bg-gray-900 shadow-lg transform ${
-          open ? 'translate-x-0' : '-translate-x-full'
-        } transition-transform duration-300 ease-in-out z-40`}
+        className={`fixed top-0 left-0 h-full w-64 bg-white dark:bg-gray-900 shadow-lg transform ${open ? 'translate-x-0' : '-translate-x-full'
+          } transition-transform duration-300 ease-in-out z-40`}
+        aria-hidden={!open}
       >
         {/* Header con logo */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
@@ -132,18 +130,14 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
               <div className="text-xs text-gray-500 dark:text-gray-400">{t('sidebar.adminPanel')}</div>
             </div>
           </div>
-          {/* Mantengo el cierre con toggle en el header, pero puedes removerlo si no quieres 'X' */}
-          <button
-            onClick={handleToggle}
-            aria-label="Cerrar menú"
-            className="text-gray-500 hover:text-gray-800 dark:hover:text-gray-200"
-          >
+
+          <button onClick={handleToggle} aria-label={t('sidebar.closeMenu') ?? 'Cerrar menú'} className="text-gray-500 hover:text-gray-800 dark:hover:text-gray-200">
             <FaTimes size={20} />
           </button>
         </div>
 
         {/* Navegación */}
-        <nav className="mt-6 px-2 space-y-2 overflow-y-auto h-[calc(100vh-80px)]">
+        <nav className="mt-6 px-2 space-y-2 overflow-y-auto h-[calc(100vh-80px)]" aria-label={t('sidebar.nav') ?? 'Main navigation'}>
           {navItems.map((item) => {
             const isActive = item.path ? pathname === item.path : false;
 
@@ -156,11 +150,10 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
                   <button
                     onClick={() => toggleGroup(item.name)}
                     aria-expanded={groupOpen}
-                    className={`w-full flex items-center justify-between gap-3 px-3 py-2 rounded-lg transition ${
-                      childActive
+                    className={`w-full flex items-center justify-between gap-3 px-3 py-2 rounded-lg transition ${childActive
                         ? 'bg-blue-600 text-white shadow-md'
                         : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'
-                    }`}
+                      }`}
                   >
                     <div className="flex items-center gap-3">
                       <span className="text-lg">{item.icon}</span>
@@ -175,13 +168,12 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
                         const childIsActive = pathname === child.path;
                         return (
                           <Link
-                            key={child.path}
+                            key={child.path ?? child.name}
                             href={child.path}
-                            className={`flex items-center gap-3 px-3 py-2 rounded-lg transition text-sm ${
-                              childIsActive
+                            className={`flex items-center gap-3 px-3 py-2 rounded-lg transition text-sm ${childIsActive
                                 ? 'bg-blue-600 text-white'
                                 : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'
-                            }`}
+                              }`}
                             onClick={handleClose}
                           >
                             <span className="text-base">{child.icon}</span>
@@ -197,13 +189,12 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
 
             return (
               <Link
-                key={item.path}
+                key={item.path ?? item.name}
                 href={item.path ?? '#'}
-                className={`flex items-center gap-3 px-4 py-2 rounded-lg transition mx-2 ${
-                  isActive
+                className={`flex items-center gap-3 px-4 py-2 rounded-lg transition mx-2 ${isActive
                     ? 'bg-blue-600 text-white shadow-md'
                     : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'
-                }`}
+                  }`}
                 onClick={handleClose}
               >
                 <span className="text-lg">{item.icon}</span>

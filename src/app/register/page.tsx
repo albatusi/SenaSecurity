@@ -45,14 +45,14 @@ function RegisterContent() {
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
         setForm({ ...form, [e.target.name]: e.target.value });
     };
-    
+
     // Nuevo handleChange para el input del código 2FA
     const handle2FACodeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         setTwoFactorCode(e.target.value);
     };
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
+        const file = e.target.files?.[0] ?? null;
         if (file) {
             setPhotoFile(file);
             const reader = new FileReader();
@@ -71,7 +71,7 @@ function RegisterContent() {
             return;
         }
 
-        const roleId = form.role === 'admin' ? 1 : form.role === 'usuario' ? 2 : 2;
+        const roleId = form.role === 'admin' ? 1 : 2;
 
         const formData = new FormData();
         formData.append('name', form.name.trim());
@@ -96,14 +96,17 @@ function RegisterContent() {
                 showMessage(res.message ?? 'Registro exitoso. Escanea el código QR.', 'success');
             } else {
                 // Si no hay 2FA (caso de respaldo), se completa el registro y se redirige
-                if (res.token) localStorage.setItem('token', res.token);
-                if (res.user) localStorage.setItem('user', JSON.stringify(res.user));
+                if (typeof window !== 'undefined') {
+                    if (res.token) localStorage.setItem('token', res.token);
+                    if (res.user) localStorage.setItem('user', JSON.stringify(res.user));
+                }
                 showMessage(res.message ?? (t('register.successMessage') ?? 'Registro exitoso'), 'success');
                 setTimeout(() => router.push('/login'), 700);
             }
-        } catch (err: any) {
+        } catch (err: unknown) {
             console.error('Registro error:', err);
-            showMessage(err.message ?? 'Error al registrar usuario', 'error');
+            const text = err instanceof Error ? err.message : String(err);
+            showMessage(text || 'Error al registrar usuario', 'error');
         } finally {
             setLoading(false);
         }
@@ -121,9 +124,10 @@ function RegisterContent() {
             showMessage(t('register.2faSuccess') ?? '2FA activado exitosamente.', 'success');
             // Redirige al login después de la verificación exitosa
             setTimeout(() => router.push('/login'), 1500);
-        } catch (err: any) {
+        } catch (err: unknown) {
             console.error('Verificación 2FA error:', err);
-            showMessage(err.message ?? 'Código 2FA inválido. Inténtalo de nuevo.', 'error');
+            const text = err instanceof Error ? err.message : String(err);
+            showMessage(text || 'Código 2FA inválido. Inténtalo de nuevo.', 'error');
         } finally {
             setLoading(false);
         }
@@ -136,9 +140,7 @@ function RegisterContent() {
                     <div
                         role="status"
                         aria-live="polite"
-                        className={`absolute top-4 left-1/2 -translate-x-1/2 z-50 w-[90%] max-w-2xl px-4 py-2 rounded-md text-sm font-medium ${messageType === 'success'
-                                ? 'bg-green-50 text-green-800 ring-1 ring-green-200'
-                                : 'bg-red-50 text-red-800 ring-1 ring-red-200'
+                        className={`absolute top-4 left-1/2 -translate-x-1/2 z-50 w-[90%] max-w-2xl px-4 py-2 rounded-md text-sm font-medium ${messageType === 'success' ? 'bg-green-50 text-green-800 ring-1 ring-green-200' : 'bg-red-50 text-red-800 ring-1 ring-red-200'
                             }`}
                     >
                         {message}
@@ -174,8 +176,10 @@ function RegisterContent() {
                                     </label>
                                     <p className="text-sm text-gray-500 mt-2">{t('register.uploadPhoto')}</p>
                                 </div>
+
                                 <InputField icon={<FaUser />} name="name" value={form.name} onChange={handleChange} placeholder={t('register.namePlaceholder') ?? 'Nombre completo'} />
                                 <InputField icon={<FaIdCard />} name="document" value={form.document} onChange={handleChange} placeholder={t('register.documentPlaceholder') ?? 'Documento'} />
+
                                 <div className="flex items-center gap-3 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-3 focus-within:ring-2 focus-within:ring-blue-400">
                                     <FaUserTag className="text-blue-500" />
                                     <select
@@ -191,17 +195,16 @@ function RegisterContent() {
                                         <option value="usuario">{t('register.userRole') ?? 'Usuario'}</option>
                                     </select>
                                 </div>
+
                                 <InputField icon={<FaEnvelope />} name="email" type="email" value={form.email} onChange={handleChange} placeholder={t('register.emailPlaceholder') ?? 'Correo electrónico'} />
                                 <InputField icon={<FaLock />} name="password" type="password" value={form.password} onChange={handleChange} placeholder={t('register.passwordPlaceholder') ?? 'Contraseña'} />
                                 <InputField icon={<FaLock />} name="confirmPassword" type="password" value={form.confirmPassword} onChange={handleChange} placeholder={t('register.confirmPasswordPlaceholder') ?? 'Confirmar contraseña'} />
-                                <button
-                                    disabled={loading}
-                                    type="submit"
-                                    className="w-full bg-blue-600 text-white py-3 rounded-full hover:bg-blue-700 transition font-semibold text-lg shadow-md"
-                                >
+
+                                <button disabled={loading} type="submit" className="w-full bg-blue-600 text-white py-3 rounded-full hover:bg-blue-700 transition font-semibold text-lg shadow-md">
                                     {loading ? (t('register.loading') ?? 'Registrando...') : (t('register.submitButton') ?? 'Registrarse')}
                                 </button>
                             </form>
+
                             <div className="mt-6 text-center">
                                 <p className="text-sm text-gray-600 dark:text-gray-300">
                                     {t('register.hasAccount')}{' '}
@@ -222,25 +225,14 @@ function RegisterContent() {
                             </p>
                             {qrCodeDataUrl && (
                                 <div className="mb-6 border-4 border-gray-200 dark:border-gray-700 rounded-lg p-2">
-                                    {/* use plain img for data URL */}
+                                    {/* Data URL -> usar <img> es la opción práctica */}
                                     {/* eslint-disable-next-line @next/next/no-img-element */}
                                     <img src={qrCodeDataUrl} alt="QR Code" width={200} height={200} className="mx-auto" />
                                 </div>
                             )}
                             <form onSubmit={handleVerify2FA} className="w-full space-y-5">
-                                <InputField
-                                    icon={<FaLock />}
-                                    name="twoFactorCode"
-                                    value={twoFactorCode}
-                                    onChange={handle2FACodeChange}
-                                    placeholder={t('register.2faCodePlaceholder') ?? 'Código de 6 dígitos'}
-                                    type="text"
-                                />
-                                <button
-                                    disabled={loading}
-                                    type="submit"
-                                    className="w-full bg-green-600 text-white py-3 rounded-full hover:bg-green-700 transition font-semibold text-lg shadow-md"
-                                >
+                                <InputField icon={<FaLock />} name="twoFactorCode" value={twoFactorCode} onChange={handle2FACodeChange} placeholder={t('register.2faCodePlaceholder') ?? 'Código de 6 dígitos'} type="text" />
+                                <button disabled={loading} type="submit" className="w-full bg-green-600 text-white py-3 rounded-full hover:bg-green-700 transition font-semibold text-lg shadow-md">
                                     {loading ? (t('register.loading') ?? 'Verificando...') : (t('register.verifyButton') ?? 'Verificar y Activar')}
                                 </button>
                             </form>
@@ -273,15 +265,7 @@ function InputField({ icon, name, value, onChange, placeholder, type = 'text' }:
     return (
         <div className="flex items-center gap-3 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-3 focus-within:ring-2 focus-within:ring-blue-400">
             <div className="text-blue-500">{icon}</div>
-            <input
-                type={type}
-                name={name}
-                value={value}
-                onChange={onChange}
-                placeholder={placeholder}
-                className="w-full bg-transparent outline-none text-gray-800 dark:text-white"
-                required
-            />
+            <input type={type} name={name} value={value} onChange={onChange} placeholder={placeholder} className="w-full bg-transparent outline-none text-gray-800 dark:text-white" required />
         </div>
     );
 }

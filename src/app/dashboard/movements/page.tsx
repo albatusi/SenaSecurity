@@ -127,22 +127,20 @@ export default function MovementsPage() {
               {movimientos.map((m, index) => (
                 <tr
                   key={m.id}
-                  className={`transition ${
-                    index % 2 === 0
+                  className={`transition ${index % 2 === 0
                       ? 'bg-gray-50 dark:bg-gray-800'
                       : 'bg-white dark:bg-gray-900'
-                  } hover:bg-cyan-50 dark:hover:bg-gray-700`}
+                    } hover:bg-cyan-50 dark:hover:bg-gray-700`}
                 >
                   <td className="p-4 font-semibold text-gray-900 dark:text-white">
                     {m.placa}
                   </td>
                   <td className="p-4">
                     <span
-                      className={`px-3 py-1 rounded-full text-sm font-semibold ${
-                        m.tipo === 'Entrada'
+                      className={`px-3 py-1 rounded-full text-sm font-semibold ${m.tipo === 'Entrada'
                           ? 'bg-green-100 text-green-700 dark:bg-green-700 dark:text-green-100'
                           : 'bg-red-100 text-red-700 dark:bg-red-700 dark:text-red-100'
-                      }`}
+                        }`}
                     >
                       {m.tipo}
                     </span>

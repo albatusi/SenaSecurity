@@ -1,35 +1,127 @@
-@import "tailwindcss";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
-/* Colores por defecto (Modo CLARO) */
+/* ===========================================
+ * SISTEMA COMPLETO MODO CLARO/OSCURO
+ * MODO CLARO POR DEFECTO - NO TOCAR MODO OSCURO
+ * =========================================== */
+
+/* Variables para MODO CLARO (por defecto) */
 :root {
+  --bg-primary: #ffffff;
+  --bg-secondary: #f8fafc;
+  --bg-tertiary: #f1f5f9;
+  --bg-hover: #e2e8f0;
+
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #64748b;
+
+  --border-light: #e2e8f0;
+  --border-medium: #cbd5e1;
+  --border-dark: #94a3b8;
+
   --background: #ffffff;
-  --foreground: #171717;
+  --foreground: #0f172a;
 }
 
-/* Colores para el Modo OSCURO
- * Se aplican solo cuando el <html> tiene la clase 'dark'
- */
+/* Variables para MODO OSCURO */
 html.dark {
-  --background: #0a0a0a;
-  --foreground: #ededed;
+  --bg-primary: #111827;
+  --bg-secondary: #1f2937;
+  --bg-tertiary: #374151;
+  --bg-hover: #4b5563;
+
+  --text-primary: #f8fafc;
+  --text-secondary: #e2e8f0;
+  --text-muted: #94a3b8;
+
+  --border-light: #374151;
+  --border-medium: #4b5563;
+  --border-dark: #6b7280;
+
+  --background: #111827;
+  --foreground: #f8fafc;
 }
 
-/* @theme inline no es necesario si no lo usas, pero lo mantengo
- * para no eliminar nada de tu código original.
- */
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+/* Transiciones suaves */
+* {
+  transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
 }
 
-/* Se elimina la regla @media (prefers-color-scheme: dark)
- * Ya no es necesaria, la clase 'dark' la controlará tu JavaScript.
- */
-
+/* Body */
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background-color: var(--bg-primary) !important;
+  color: var(--text-primary) !important;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  line-height: 1.6;
+  min-height: 100vh;
+}
+
+/* Forzar modo claro si no hay .dark */
+html:not(.dark) {
+  background-color: #ffffff !important;
+}
+
+html:not(.dark) body {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+}
+
+/* ====================================
+ * CORRECCIONES VISUALES MODO CLARO
+ * ==================================== */
+
+/* Textos */
+html:not(.dark) .text-white {
+  color: #111827 !important;
+}
+
+/* Bordes */
+html:not(.dark) .border-white {
+  border-color: #e2e8f0 !important;
+}
+
+/* Sombras */
+html:not(.dark) .shadow-md {
+  box-shadow: 0 4px 6px rgba(0,0,0,0.1) !important;
+}
+
+/* Inputs */
+html:not(.dark) input {
+  background-color: #ffffff !important;
+  border: 1px solid #cbd5e1 !important;
+  color: #1f2937 !important;
+}
+html:not(.dark) input::placeholder {
+  color: #9ca3af !important;
+}
+
+/* Botones sin bg */
+html:not(.dark) button:not([class*="bg-"]) {
+  background-color: #f3f4f6 !important;
+  color: #374151 !important;
+  border: 1px solid #d1d5db !important;
+}
+html:not(.dark) button:not([class*="bg-"]):hover {
+  background-color: #e5e7eb !important;
+  border-color: #9ca3af !important;
+}
+
+/* Links */
+html:not(.dark) a {
+  color: #2563eb !important;
+}
+html:not(.dark) a:hover {
+  color: #1d4ed8 !important;
+  text-decoration: underline !important;
+}
+
+/* Navbar */
+html:not(.dark) header, 
+html:not(.dark) nav {
+  background-color: #ffffff !important;
+  border-bottom: 1px solid #e5e7eb !important;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1) !important;
 }

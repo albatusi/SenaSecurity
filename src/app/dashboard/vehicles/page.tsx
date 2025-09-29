@@ -14,7 +14,6 @@ type Vehicle = {
 
 const LOCAL_KEY = 'vehicles_v1';
 
-// Hook localStorage reutilizable
 function useLocalStorage<T>(key: string, initialValue: T) {
   const [state, setState] = useState<T>(() => {
     try {
@@ -39,6 +38,18 @@ function useLocalStorage<T>(key: string, initialValue: T) {
   return [state, setState] as const;
 }
 
+/* Types para PlateRecognizer (simplificados) */
+interface PlateResult {
+  plate?: string;
+  score?: number;
+  confidence?: number;
+}
+
+interface PlateRecognizerResponse {
+  results?: PlateResult[];
+  // otros campos ignorados
+}
+
 export default function VehiclesPage() {
   const { t } = useLanguage();
   const [vehicles, setVehicles] = useLocalStorage<Vehicle[]>(LOCAL_KEY, []);
@@ -47,24 +58,18 @@ export default function VehiclesPage() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
-  // nuevo estado para modo: 'manual' | 'auto'
   const [mode, setMode] = useState<'manual' | 'auto'>('manual');
 
-  // cámara refs / estados para modo automático y captura de rostro
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const [recognizing, setRecognizing] = useState(false);
   const [lastConfidence, setLastConfidence] = useState<number | null>(null);
 
-  // Estado para foto de rostro capturada
   const [facePhoto, setFacePhoto] = useState<string | null>(null);
-
-  // Estado para foto ampliada al hacer click
   const [expandedPhoto, setExpandedPhoto] = useState<string | null>(null);
 
-  // API key (pon NEXT_PUBLIC_PLATE_API_KEY en .env.local)
-  const PLATE_API_KEY = process.env.NEXT_PUBLIC_PLATE_API_KEY || '';
+  const PLATE_API_KEY = process.env.NEXT_PUBLIC_PLATE_API_KEY ?? '';
 
   useEffect(() => {
     if (!message) return;
@@ -72,10 +77,14 @@ export default function VehiclesPage() {
     return () => clearTimeout(tmo);
   }, [message]);
 
-  // Inicia cámara cuando mode === 'auto' o 'manual'
+  // Observa mode y arranca/detiene cámara
   useEffect(() => {
-    if (mode === 'auto' || mode === 'manual') startCamera();
-    return () => stopCamera(); // cleanup al desmontar o al cambiar modo
+    if (mode === 'auto' || mode === 'manual') {
+      startCamera();
+    }
+    return () => {
+      stopCamera();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode]);
 
@@ -92,32 +101,37 @@ export default function VehiclesPage() {
       streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        // play is async
         try {
           await videoRef.current.play();
-        } catch (e) {
-          // ignore autoplay blocking
+        } catch {
+          // autoplay bloqueado: continuar sin lanzar
         }
       }
       setMessage(t('vehicles.cameraStarted') ?? 'Cámara iniciada');
-    } catch (err) {
+    } catch (err: unknown) {
       console.error('Error iniciando cámara', err);
-      setMessage(t('vehicles.cameraError') ?? 'Error al iniciar la cámara');
+      const msg = err instanceof Error ? err.message : String(err);
+      setMessage(t('vehicles.cameraError') ?? `Error al iniciar la cámara: ${msg}`);
     }
   };
 
   const stopCamera = () => {
     try {
       if (streamRef.current) {
-        streamRef.current.getTracks().forEach((t) => t.stop());
+        streamRef.current.getTracks().forEach((track) => track.stop());
         streamRef.current = null;
       }
       if (videoRef.current) {
         try {
           videoRef.current.pause();
         } catch {}
-        // @ts-ignore
-        videoRef.current.srcObject = null;
+        // TypeScript a veces se queja al asignar srcObject = null en ciertas libdefs.
+        // Usamos una asignación segura y explícita para evitar @ts-ignore.
+        try {
+          (videoRef.current as HTMLVideoElement).srcObject = null;
+        } catch {
+          // Si falla, lo ignoramos — lo importante es detener las pistas.
+        }
       }
     } catch (err) {
       console.warn('Error al detener cámara', err);
@@ -195,13 +209,11 @@ export default function VehiclesPage() {
     if (!vehicles.length) return setMessage(t('vehicles.noVehiclesToExport') ?? 'No hay vehículos para exportar');
     const header = ['id', 'name', 'plate', 'type', 'createdAt', 'facePhoto'];
     const rows = vehicles.map((v) => [v.id, v.name, v.plate, v.type, v.createdAt, v.facePhoto || '']);
-    // construir CSV escapando comillas
     const csv = [header, ...rows]
       .map((r) =>
         r
           .map((c) => {
             const cell = String(c ?? '');
-            // si contiene comillas, comas o saltos, la encerramos en comillas y escapamos comillas dobles
             const escaped = cell.replace(/"/g, '""');
             if (/[",\n]/.test(cell)) return `"${escaped}"`;
             return escaped;
@@ -238,7 +250,6 @@ export default function VehiclesPage() {
       setRecognizing(true);
       setMessage(t('vehicles.capturingImage') ?? 'Capturando imagen...');
 
-      // dibujar frame en canvas
       const video = videoRef.current;
       if (!canvasRef.current) canvasRef.current = document.createElement('canvas');
       const canvas = canvasRef.current;
@@ -248,9 +259,9 @@ export default function VehiclesPage() {
       if (!ctx) throw new Error('No se pudo crear contexto del canvas');
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-      // convertir a blob
-      const blob: Blob | null = await new Promise((resolve) =>
-        canvas.toBlob((b) => resolve(b), 'image/jpeg', 0.9)
+      // tipado del callback de toBlob
+      const blob: Blob | null = await new Promise((resolve: (b: Blob | null) => void) =>
+        canvas.toBlob((b: Blob | null) => resolve(b), 'image/jpeg', 0.9)
       );
 
       if (!blob) {
@@ -274,13 +285,12 @@ export default function VehiclesPage() {
       });
 
       if (!res.ok) {
-        const err = await res.text();
-        throw new Error(`API error: ${res.status} ${err}`);
+        const errText = await res.text();
+        throw new Error(`API error: ${res.status} ${errText}`);
       }
 
-      const data = await res.json();
+      const data = (await res.json()) as PlateRecognizerResponse;
 
-      // interpretar respuesta (según docs)
       if (data.results && data.results.length > 0) {
         const r = data.results[0];
         const plateDetected = (r.plate || '').toString().toUpperCase();
@@ -289,7 +299,6 @@ export default function VehiclesPage() {
           setForm((prev) => ({ ...prev, plate: plateDetected }));
           setLastConfidence(confidence ?? null);
           setMessage(`${t('vehicles.plateDetected') ?? 'Placa detectada'}: ${plateDetected}`);
-          // desplazar la vista al formulario para completar nombre/tipo y registrar
           window.scrollTo({ top: 0, behavior: 'smooth' });
         } else {
           setMessage(t('vehicles.noPlateDetected') ?? 'No se detectó placa');
@@ -299,14 +308,13 @@ export default function VehiclesPage() {
       }
     } catch (err: unknown) {
       console.error('Error reconocimiento:', err);
-      const errorMessage = err instanceof Error ? err.message : String(err);
-      setMessage((t('vehicles.recognitionError') ?? 'Error de reconocimiento') + ': ' + errorMessage);
+      const msg = err instanceof Error ? err.message : String(err);
+      setMessage((t('vehicles.recognitionError') ?? 'Error de reconocimiento') + ': ' + msg);
     } finally {
       setRecognizing(false);
     }
   };
 
-  // función para registrar desde modo automático (usa la misma validación)
   const registerFromAuto = () => {
     const name = form.name.trim();
     const plate = validatePlate(form.plate || '');
@@ -330,7 +338,6 @@ export default function VehiclesPage() {
     resetForm();
   };
 
-  // función para capturar foto de rostro desde video
   const captureFacePhoto = () => {
     if (!videoRef.current) return setMessage(t('vehicles.cameraNotStarted') ?? 'Cámara no iniciada');
     const video = videoRef.current;
@@ -376,31 +383,22 @@ export default function VehiclesPage() {
           <button
             type="button"
             onClick={() => setMode('manual')}
-            className={`px-4 py-2 rounded-md ${
-              mode === 'manual'
-                ? 'bg-blue-600 text-white'
-                : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-white'
-            }`}
+            className={`px-4 py-2 rounded-md ${mode === 'manual' ? 'bg-blue-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-white'}`}
           >
             {t('vehicles.manualMode') ?? 'Manual'}
           </button>
           <button
             type="button"
             onClick={() => setMode('auto')}
-            className={`px-4 py-2 rounded-md ${
-              mode === 'auto'
-                ? 'bg-blue-600 text-white'
-                : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-white'
-            }`}
+            className={`px-4 py-2 rounded-md ${mode === 'auto' ? 'bg-blue-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-white'}`}
           >
             {t('vehicles.autoMode') ?? 'Automático'}
           </button>
         </div>
 
-        {/* FORMULARIO MANUAL / AUTOMÁTICO (se muestra en ambos modos) */}
+        {/* FORMULARIO */}
         {(mode === 'manual' || mode === 'auto') && (
           <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            {/* Nombre propietario */}
             <input
               type="text"
               placeholder={t('vehicles.ownerPlaceholder') ?? 'Nombre del propietario'}
@@ -409,8 +407,6 @@ export default function VehiclesPage() {
               required
               className="col-span-1 md:col-span-2 p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-white"
             />
-
-            {/* Placa */}
             <input
               type="text"
               placeholder={t('vehicles.platePlaceholder') ?? 'Placa'}
@@ -419,7 +415,6 @@ export default function VehiclesPage() {
               required
               className="p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-white"
             />
-
             <select
               value={form.type}
               onChange={(e) => setForm({ ...form, type: e.target.value as Vehicle['type'] })}
@@ -430,22 +425,14 @@ export default function VehiclesPage() {
               <option value="bicicleta">{t('vehicles.typeBicycle') ?? 'Bicicleta'}</option>
             </select>
 
-            {/* Mostrar miniatura de foto capturada */}
             <div className="md:col-span-3 flex items-center gap-4 mt-2">
               {facePhoto && (
-                <img
-                  src={facePhoto}
-                  alt="Foto rostro"
-                  className="w-24 h-24 rounded-full object-cover border border-gray-300 dark:border-gray-600"
-                />
+                // mantenemos <img> para data URLs (aceptable). Si quieres, lo convertimos a next/image con loader.
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={facePhoto} alt="Foto rostro" className="w-24 h-24 rounded-full object-cover border border-gray-300 dark:border-gray-600" />
               )}
 
-              {/* Botón Capturar rostro */}
-              <button
-                type="button"
-                onClick={captureFacePhoto}
-                className="px-4 py-2 border rounded-md"
-              >
+              <button type="button" onClick={captureFacePhoto} className="px-4 py-2 border rounded-md">
                 {t('vehicles.captureFace') ?? 'Capturar rostro'}
               </button>
             </div>
@@ -453,35 +440,20 @@ export default function VehiclesPage() {
             <div className="md:col-span-3 flex gap-2 mt-2">
               {mode === 'auto' ? (
                 <>
-                  <button
-                    type="button"
-                    onClick={registerFromAuto}
-                    className="flex-1 bg-blue-600 text-white py-3 rounded-lg font-semibold"
-                  >
+                  <button type="button" onClick={registerFromAuto} className="flex-1 bg-blue-600 text-white py-3 rounded-lg font-semibold">
                     {t('vehicles.registerAuto') ?? 'Registrar (auto)'}
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => setMode('manual')}
-                    className="px-4 py-3 border rounded-lg"
-                  >
+                  <button type="button" onClick={() => setMode('manual')} className="px-4 py-3 border rounded-lg">
                     {t('vehicles.changeToManual') ?? 'Cambiar a manual'}
                   </button>
                 </>
               ) : (
                 <>
-                  <button
-                    type="submit"
-                    className="flex-1 bg-blue-600 text-white py-3 rounded-lg font-semibold"
-                  >
+                  <button type="submit" className="flex-1 bg-blue-600 text-white py-3 rounded-lg font-semibold">
                     {editingId !== null ? t('vehicles.saveChanges') ?? 'Guardar cambios' : t('vehicles.register') ?? 'Registrar'}
                   </button>
                   {editingId !== null && (
-                    <button
-                      type="button"
-                      onClick={cancelEdit}
-                      className="px-4 py-3 border rounded-lg"
-                    >
+                    <button type="button" onClick={cancelEdit} className="px-4 py-3 border rounded-lg">
                       {t('vehicles.cancel') ?? 'Cancelar'}
                     </button>
                   )}
@@ -491,17 +463,14 @@ export default function VehiclesPage() {
           </form>
         )}
 
-        {/* Mensaje */}
         {message && <div className="mt-3 text-sm text-gray-700 dark:text-gray-200">{message}</div>}
 
-        {/* Cámara visible en modo manual */}
         {mode === 'manual' && (
           <div className="mt-4 bg-gray-100 dark:bg-gray-800 p-3 rounded-lg max-w-3xl mx-auto">
             <video ref={videoRef} className="w-full h-64 object-cover rounded" autoPlay muted playsInline />
           </div>
         )}
 
-        {/* Visor de cámara y controles en modo automático */}
         {mode === 'auto' && (
           <div className="mt-4">
             <div className="bg-gray-100 dark:bg-gray-800 p-3 rounded-lg">
@@ -513,23 +482,11 @@ export default function VehiclesPage() {
               </div>
 
               <div className="mt-3 flex gap-2">
-                <button
-                  type="button"
-                  onClick={captureAndRecognize}
-                  disabled={recognizing}
-                  className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-60"
-                >
+                <button type="button" onClick={captureAndRecognize} disabled={recognizing} className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-60">
                   {recognizing ? t('vehicles.processing') ?? 'Procesando...' : t('vehicles.captureAndRecognize') ?? 'Capturar y reconocer'}
                 </button>
 
-                <button
-                  type="button"
-                  onClick={() => {
-                    stopCamera();
-                    setMode('manual');
-                  }}
-                  className="px-4 py-2 border rounded-md"
-                >
+                <button type="button" onClick={() => { stopCamera(); setMode('manual'); }} className="px-4 py-2 border rounded-md">
                   {t('vehicles.stopCamera') ?? 'Detener cámara'}
                 </button>
 
@@ -555,18 +512,11 @@ export default function VehiclesPage() {
         ) : (
           <ul className="space-y-3">
             {filtered.map((v) => (
-              <li
-                key={v.id}
-                className="p-4 border rounded-lg flex items-center justify-between bg-gradient-to-r from-white to-blue-50 dark:from-gray-900 dark:to-blue-900/20"
-              >
+              <li key={v.id} className="p-4 border rounded-lg flex items-center justify-between bg-gradient-to-r from-white to-blue-50 dark:from-gray-900 dark:to-blue-900/20">
                 <div className="flex items-center gap-3">
                   {v.facePhoto && (
-                    <img
-                      src={v.facePhoto}
-                      alt={`Foto de ${v.name}`}
-                      className="w-12 h-12 rounded-full object-cover cursor-pointer"
-                      onClick={() => setExpandedPhoto(v.facePhoto || null)}
-                    />
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={v.facePhoto} alt={`Foto de ${v.name}`} className="w-12 h-12 rounded-full object-cover cursor-pointer" onClick={() => setExpandedPhoto(v.facePhoto || null)} />
                   )}
                   <div>
                     <div className="flex items-baseline gap-3">
@@ -585,10 +535,7 @@ export default function VehiclesPage() {
                   <button onClick={() => handleEdit(v)} className="px-3 py-2 border rounded-md text-sm">
                     {t('vehicles.edit') ?? 'Editar'}
                   </button>
-                  <button
-                    onClick={() => handleDelete(v.id)}
-                    className="px-3 py-2 bg-red-600 text-white rounded-md text-sm"
-                  >
+                  <button onClick={() => handleDelete(v.id)} className="px-3 py-2 bg-red-600 text-white rounded-md text-sm">
                     {t('vehicles.delete') ?? 'Eliminar'}
                   </button>
                 </div>
@@ -598,16 +545,8 @@ export default function VehiclesPage() {
         )}
 
         <div className="mt-4 text-sm text-gray-500 dark:text-gray-400 flex justify-between items-center">
-          <span>
-            {vehicles.length} {t('vehicles.total') ?? 'total'}
-          </span>
-          <button
-            onClick={() => {
-              setVehicles([]);
-              setMessage(t('vehicles.listCleared') ?? 'Lista vaciada');
-            }}
-            className="underline"
-          >
+          <span>{vehicles.length} {t('vehicles.total') ?? 'total'}</span>
+          <button onClick={() => { setVehicles([]); setMessage(t('vehicles.listCleared') ?? 'Lista vaciada'); }} className="underline">
             {t('vehicles.clearList') ?? 'Limpiar lista'}
           </button>
         </div>
@@ -615,16 +554,9 @@ export default function VehiclesPage() {
 
       {/* Modal para foto ampliada */}
       {expandedPhoto && (
-        <div
-          className="fixed inset-0 bg-black bg-opacity-70 flex justify-center items-center z-50"
-          onClick={() => setExpandedPhoto(null)}
-        >
-          <img
-            src={expandedPhoto}
-            alt="Foto ampliada"
-            className="max-w-full max-h-full rounded-lg shadow-lg"
-            onClick={(e) => e.stopPropagation()}
-          />
+        <div className="fixed inset-0 bg-black bg-opacity-70 flex justify-center items-center z-50" onClick={() => setExpandedPhoto(null)}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={expandedPhoto} alt="Foto ampliada" className="max-w-full max-h-full rounded-lg shadow-lg" onClick={(e) => e.stopPropagation()} />
         </div>
       )}
     </div>
