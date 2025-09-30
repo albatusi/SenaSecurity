@@ -25,9 +25,7 @@ export default function Navbar({ toggleSidebar }: NavbarProps) {
           <Image
             src="/logo.png" // pon aquí la ruta de tu logo
             alt="Logo"
-            width={48}
-            height={48}
-            className="object-contain" // ⬅ logo más grande y proporcionado
+            style={{ width: '80px', height: '80px' }} // ⬅ logo más grande y proporcionado
           />
           {/* Nombre del proyecto */}
           <span className="text-xl font-bold text-gray-800 dark:text-white">
