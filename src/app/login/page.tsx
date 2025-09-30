@@ -262,7 +262,7 @@ function LoginContent() {
           )}
 
           <div className="flex justify-center">
-            <Image src="/logo.png" alt="Logo" width={80} height={80} priority />
+            <Image src="/Logo.png" alt="Logo" width={80} height={80} priority />
           </div>
 
           {/* Lógica condicional para mostrar el formulario de login o el de 2FA */}

@@ -9,7 +9,7 @@ interface NavbarProps {
 
 export default function Navbar({ toggleSidebar }: NavbarProps) {
   const { t } = useLanguage();
-  
+
   return (
     <header className="flex justify-between items-center bg-white dark:bg-gray-800 shadow px-6 py-4 z-10">
       {/* Izquierda: Botón hamburguesa + Logo + Nombre */}
@@ -23,7 +23,7 @@ export default function Navbar({ toggleSidebar }: NavbarProps) {
         <div className="flex items-center gap-3">
           {/* Logo */}
           <Image
-            src="/logo.png" // pon aquí la ruta de tu logo
+            src="/Logo.png" // pon aquí la ruta de tu logo
             alt="Logo"
             width={48}
             height={48}
@@ -39,10 +39,10 @@ export default function Navbar({ toggleSidebar }: NavbarProps) {
       <div className="flex items-center gap-4">
         {/* Toggle de idioma */}
         <LanguageToggle />
-        
+
         {/* Divider visual */}
         <div className="h-6 w-px bg-gray-300 dark:bg-gray-600"></div>
-        
+
         {/* Botón Cerrar Sesión */}
         <button
           onClick={() => {
@@ -55,5 +55,5 @@ export default function Navbar({ toggleSidebar }: NavbarProps) {
         </button>
       </div>
     </header>
-  );
+  );
 }
