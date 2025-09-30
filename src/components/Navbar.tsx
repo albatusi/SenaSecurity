@@ -23,7 +23,7 @@ export default function Navbar({ toggleSidebar }: NavbarProps) {
         <div className="flex items-center gap-3">
           {/* Logo */}
           <Image
-            src="/Logo.png" // pon aquí la ruta de tu logo
+            src="/logo.png" // pon aquí la ruta de tu logo
             alt="Logo"
             width={48}
             height={48}
