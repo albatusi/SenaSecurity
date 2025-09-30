@@ -94,10 +94,12 @@ export default function VehiclesPage() {
         setMessage(t('vehicles.browserNotSupported') ?? 'Tu navegador no soporta cámara');
         return;
       }
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment' },
+      // Constraints con fallback: prefer environment
+      const constraints: MediaStreamConstraints = {
+        video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } },
         audio: false,
-      });
+      };
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
       streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
@@ -125,12 +127,10 @@ export default function VehiclesPage() {
         try {
           videoRef.current.pause();
         } catch {}
-        // TypeScript a veces se queja al asignar srcObject = null en ciertas libdefs.
-        // Usamos una asignación segura y explícita para evitar @ts-ignore.
         try {
           (videoRef.current as HTMLVideoElement).srcObject = null;
         } catch {
-          // Si falla, lo ignoramos — lo importante es detener las pistas.
+          // ignore
         }
       }
     } catch (err) {
@@ -253,13 +253,13 @@ export default function VehiclesPage() {
       const video = videoRef.current;
       if (!canvasRef.current) canvasRef.current = document.createElement('canvas');
       const canvas = canvasRef.current;
+      // Ajustamos el tamaño según el video actual
       canvas.width = video.videoWidth || 1280;
       canvas.height = video.videoHeight || 720;
       const ctx = canvas.getContext('2d');
       if (!ctx) throw new Error('No se pudo crear contexto del canvas');
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-      // tipado del callback de toBlob
       const blob: Blob | null = await new Promise((resolve: (b: Blob | null) => void) =>
         canvas.toBlob((b: Blob | null) => resolve(b), 'image/jpeg', 0.9)
       );
@@ -354,10 +354,10 @@ export default function VehiclesPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 px-4 sm:px-6 lg:px-8">
       {/* Header + form */}
-      <div className="bg-white dark:bg-gray-900 p-6 rounded-2xl shadow-md max-w-3xl mx-auto">
-        <div className="flex items-center justify-between mb-4">
+      <div className="bg-white dark:bg-gray-900 p-6 rounded-2xl shadow-md max-w-4xl mx-auto">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 gap-4">
           <div>
             <h2 className="text-2xl font-bold text-gray-800 dark:text-white">
               {editingId !== null ? t('vehicles.editTitle') ?? 'Editar vehículo' : <>🚘 {t('vehicles.pageTitle') ?? 'Registro de vehículos'}</>}
@@ -365,14 +365,14 @@ export default function VehiclesPage() {
             <p className="text-sm text-gray-500 dark:text-gray-400">{t('vehicles.subtitle')}</p>
           </div>
 
-          <div className="flex gap-2 items-center">
+          <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
             <input
               placeholder={t('vehicles.searchPlaceholder')}
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              className="px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-400 dark:bg-gray-800 dark:text-white"
+              className="px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-400 dark:bg-gray-800 dark:text-white w-full sm:w-72"
             />
-            <button onClick={exportCSV} className="px-3 py-2 bg-green-600 text-white rounded-md hover:brightness-90">
+            <button onClick={exportCSV} className="px-3 py-2 bg-green-600 text-white rounded-md hover:brightness-90 w-full sm:w-auto">
               {t('vehicles.exportCSV') ?? 'Exportar CSV'}
             </button>
           </div>
@@ -425,35 +425,37 @@ export default function VehiclesPage() {
               <option value="bicicleta">{t('vehicles.typeBicycle') ?? 'Bicicleta'}</option>
             </select>
 
-            <div className="md:col-span-3 flex items-center gap-4 mt-2">
+            <div className="md:col-span-3 flex flex-col sm:flex-row items-center gap-4 mt-2">
               {facePhoto && (
-                // mantenemos <img> para data URLs (aceptable). Si quieres, lo convertimos a next/image con loader.
+                // mantenemos <img> para data URLs (aceptable)
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={facePhoto} alt="Foto rostro" className="w-24 h-24 rounded-full object-cover border border-gray-300 dark:border-gray-600" />
               )}
 
-              <button type="button" onClick={captureFacePhoto} className="px-4 py-2 border rounded-md">
-                {t('vehicles.captureFace') ?? 'Capturar rostro'}
-              </button>
+              <div className="flex gap-2 w-full sm:w-auto">
+                <button type="button" onClick={captureFacePhoto} className="px-4 py-2 border rounded-md w-full sm:w-auto">
+                  {t('vehicles.captureFace') ?? 'Capturar rostro'}
+                </button>
+              </div>
             </div>
 
-            <div className="md:col-span-3 flex gap-2 mt-2">
+            <div className="md:col-span-3 flex flex-col sm:flex-row gap-2 mt-2">
               {mode === 'auto' ? (
                 <>
-                  <button type="button" onClick={registerFromAuto} className="flex-1 bg-blue-600 text-white py-3 rounded-lg font-semibold">
+                  <button type="button" onClick={registerFromAuto} className="w-full sm:flex-1 bg-blue-600 text-white py-3 rounded-lg font-semibold">
                     {t('vehicles.registerAuto') ?? 'Registrar (auto)'}
                   </button>
-                  <button type="button" onClick={() => setMode('manual')} className="px-4 py-3 border rounded-lg">
+                  <button type="button" onClick={() => setMode('manual')} className="w-full sm:w-auto px-4 py-3 border rounded-lg">
                     {t('vehicles.changeToManual') ?? 'Cambiar a manual'}
                   </button>
                 </>
               ) : (
                 <>
-                  <button type="submit" className="flex-1 bg-blue-600 text-white py-3 rounded-lg font-semibold">
+                  <button type="submit" className="w-full sm:flex-1 bg-blue-600 text-white py-3 rounded-lg font-semibold">
                     {editingId !== null ? t('vehicles.saveChanges') ?? 'Guardar cambios' : t('vehicles.register') ?? 'Registrar'}
                   </button>
                   {editingId !== null && (
-                    <button type="button" onClick={cancelEdit} className="px-4 py-3 border rounded-lg">
+                    <button type="button" onClick={cancelEdit} className="w-full sm:w-auto px-4 py-3 border rounded-lg">
                       {t('vehicles.cancel') ?? 'Cancelar'}
                     </button>
                   )}
@@ -465,28 +467,52 @@ export default function VehiclesPage() {
 
         {message && <div className="mt-3 text-sm text-gray-700 dark:text-gray-200">{message}</div>}
 
+        {/* Video preview for manual mode (still useful) */}
         {mode === 'manual' && (
-          <div className="mt-4 bg-gray-100 dark:bg-gray-800 p-3 rounded-lg max-w-3xl mx-auto">
-            <video ref={videoRef} className="w-full h-64 object-cover rounded" autoPlay muted playsInline />
+          <div className="mt-4 bg-gray-100 dark:bg-gray-800 p-3 rounded-lg max-w-4xl mx-auto">
+            <video
+              ref={videoRef}
+              className="w-full h-48 sm:h-64 md:h-72 lg:h-80 object-cover rounded"
+              autoPlay
+              muted
+              playsInline
+            />
           </div>
         )}
 
+        {/* Auto mode: video + overlay + controls responsive */}
         {mode === 'auto' && (
           <div className="mt-4">
             <div className="bg-gray-100 dark:bg-gray-800 p-3 rounded-lg">
               <div className="relative">
-                <video ref={videoRef} id="video" className="w-full h-64 object-cover rounded" autoPlay muted playsInline />
+                <video
+                  ref={videoRef}
+                  id="video"
+                  className="w-full h-48 sm:h-64 md:h-72 lg:h-80 object-cover rounded"
+                  autoPlay
+                  muted
+                  playsInline
+                />
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                  <div className="w-3/4 h-20 border-2 border-white/60 rounded-lg"></div>
+                  <div className="w-11/12 sm:w-3/4 lg:w-1/2 h-20 border-2 border-white/60 rounded-lg"></div>
                 </div>
               </div>
 
-              <div className="mt-3 flex gap-2">
-                <button type="button" onClick={captureAndRecognize} disabled={recognizing} className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-60">
+              <div className="mt-3 flex flex-col sm:flex-row gap-2">
+                <button
+                  type="button"
+                  onClick={captureAndRecognize}
+                  disabled={recognizing}
+                  className="w-full sm:w-auto px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-60"
+                >
                   {recognizing ? t('vehicles.processing') ?? 'Procesando...' : t('vehicles.captureAndRecognize') ?? 'Capturar y reconocer'}
                 </button>
 
-                <button type="button" onClick={() => { stopCamera(); setMode('manual'); }} className="px-4 py-2 border rounded-md">
+                <button
+                  type="button"
+                  onClick={() => { stopCamera(); setMode('manual'); }}
+                  className="w-full sm:w-auto px-4 py-2 border rounded-md"
+                >
                   {t('vehicles.stopCamera') ?? 'Detener cámara'}
                 </button>
 
@@ -502,7 +528,7 @@ export default function VehiclesPage() {
       </div>
 
       {/* Lista de vehículos registrada */}
-      <div className="max-w-3xl mx-auto bg-white dark:bg-gray-900 p-6 rounded-2xl shadow-md">
+      <div className="max-w-4xl mx-auto bg-white dark:bg-gray-900 p-6 rounded-2xl shadow-md">
         <h3 className="text-xl font-semibold text-gray-800 dark:text-white mb-4">
           🧡 {t('vehicles.registeredList') ?? 'Vehículos registrados'} ({vehicles.length})
         </h3>
@@ -516,7 +542,12 @@ export default function VehiclesPage() {
                 <div className="flex items-center gap-3">
                   {v.facePhoto && (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={v.facePhoto} alt={`Foto de ${v.name}`} className="w-12 h-12 rounded-full object-cover cursor-pointer" onClick={() => setExpandedPhoto(v.facePhoto || null)} />
+                    <img
+                      src={v.facePhoto}
+                      alt={`Foto de ${v.name}`}
+                      className="w-12 h-12 rounded-full object-cover cursor-pointer"
+                      onClick={() => setExpandedPhoto(v.facePhoto || null)}
+                    />
                   )}
                   <div>
                     <div className="flex items-baseline gap-3">
@@ -544,7 +575,7 @@ export default function VehiclesPage() {
           </ul>
         )}
 
-        <div className="mt-4 text-sm text-gray-500 dark:text-gray-400 flex justify-between items-center">
+        <div className="mt-4 text-sm text-gray-500 dark:text-gray-400 flex flex-col sm:flex-row justify-between items-center gap-2">
           <span>{vehicles.length} {t('vehicles.total') ?? 'total'}</span>
           <button onClick={() => { setVehicles([]); setMessage(t('vehicles.listCleared') ?? 'Lista vaciada'); }} className="underline">
             {t('vehicles.clearList') ?? 'Limpiar lista'}
@@ -554,9 +585,14 @@ export default function VehiclesPage() {
 
       {/* Modal para foto ampliada */}
       {expandedPhoto && (
-        <div className="fixed inset-0 bg-black bg-opacity-70 flex justify-center items-center z-50" onClick={() => setExpandedPhoto(null)}>
+        <div className="fixed inset-0 bg-black bg-opacity-80 flex justify-center items-center z-50 p-4" onClick={() => setExpandedPhoto(null)}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={expandedPhoto} alt="Foto ampliada" className="max-w-full max-h-full rounded-lg shadow-lg" onClick={(e) => e.stopPropagation()} />
+          <img
+            src={expandedPhoto}
+            alt="Foto ampliada"
+            className="max-w-full max-h-[90vh] rounded-lg shadow-lg"
+            onClick={(e) => e.stopPropagation()}
+          />
         </div>
       )}
     </div>

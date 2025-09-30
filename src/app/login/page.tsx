@@ -1,18 +1,17 @@
-// src/app/[ruta]/LoginPage.tsx (o donde lo tengas)
+// src/app/[ruta]/LoginPage.tsx (reemplaza tu archivo existente)
 'use client';
 import Image from 'next/image';
 import { useState, createContext, useContext } from 'react';
 import { useRouter } from 'next/navigation';
+import { FaCheckCircle, FaExclamationTriangle } from 'react-icons/fa';
 
 // --- Lógica del Contexto de Idioma Simplificado (para funcionar en un solo archivo) ---
-// Define la estructura del contexto
 interface LanguageContextType {
   t: (key: string) => string;
 }
 
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
 
-// Proveedor de Idioma simplificado que proporciona una función 't'
 function LanguageProvider({ children }: { children: React.ReactNode }) {
   const translations: { [key: string]: string } = {
     'login.imageAlt': 'Un hombre con un escudo de seguridad virtual',
@@ -37,7 +36,6 @@ function LanguageProvider({ children }: { children: React.ReactNode }) {
   return <LanguageContext.Provider value={{ t }}>{children}</LanguageContext.Provider>;
 }
 
-// Hook para usar el contexto de idioma
 function useLanguage() {
   const context = useContext(LanguageContext);
   if (context === undefined) {
@@ -54,7 +52,6 @@ interface LoginData {
   password: string;
 }
 
-// Se añade un tipo de respuesta que puede indicar la necesidad de 2FA
 interface LoginResponse {
   message: string;
   token?: string;
@@ -84,7 +81,6 @@ async function parseErrorBody(response: Response) {
   }
 }
 
-// Función de la API para iniciar sesión
 async function loginUser(data: LoginData): Promise<LoginResponse> {
   try {
     const res = await fetch(`${API_URL}/auth/login`, {
@@ -107,7 +103,6 @@ async function loginUser(data: LoginData): Promise<LoginResponse> {
   }
 }
 
-// Nueva función para enviar el código 2FA al backend y obtener el token
 async function verify2faLogin(email: string, twoFactorCode: string): Promise<Verify2FAResponse> {
   try {
     const res = await fetch(`${API_URL}/auth/verify-login-2fa`, {
@@ -130,7 +125,6 @@ async function verify2faLogin(email: string, twoFactorCode: string): Promise<Ver
   }
 }
 
-// Tipo para el estado del mensaje de la UI (éxito, error o nulo)
 type MsgType = 'success' | 'error' | null;
 
 function LoginContent() {
@@ -150,43 +144,39 @@ function LoginContent() {
   const [loading, setLoading] = useState(false);
   const { t } = useLanguage();
 
+  // Mostrar mensaje: ahora es más flexible y responsivo (fixed, multiline)
   const showMessage = (text: string, type: MsgType = 'error') => {
     setMessage(text);
     setMessageType(type);
+    // duración larga si es mensaje visible (corta si es success)
+    const duration = type === 'error' ? 4000 : 3000;
     setTimeout(() => {
       setMessage(null);
       setMessageType(null);
-    }, 3000);
+    }, duration);
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setForm({ ...form, [e.target.name]: e.target.value });
   };
 
-  // Nuevo manejador para el campo de código 2FA
   const handle2FACodeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setTwoFactorCode(e.target.value);
   };
 
-  // Lógica de envío principal
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     try {
-      // Normalizamos email al enviar
       const normalizedEmail = (form.email || '').trim().toLowerCase();
 
       const res = await loginUser({ email: normalizedEmail, password: form.password });
 
-      // --- Lógica Condicional para 2FA ---
-      // Si el backend responde que 2FA está habilitado, pasamos a la siguiente fase
       if (res.requires2FA || res.user?.habilitado2FA) {
-        setShow2FAForm(true); // Muestra el formulario de 2FA
-        // Prioriza email devuelto por backend (si lo incluye), si no usar el normalizado
+        setShow2FAForm(true);
         setUserEmailFor2FA(res.email ?? normalizedEmail);
         showMessage(t('login.2faInstructions'), 'success');
       } else if (res.token) {
-        // Si no hay 2FA, se procede con el login normal
         if (typeof window !== 'undefined') {
           localStorage.setItem('token', res.token);
           if (res.user) localStorage.setItem('user', JSON.stringify(res.user));
@@ -205,16 +195,13 @@ function LoginContent() {
     }
   };
 
-  // Nueva función para manejar el envío del formulario 2FA
   const handle2FASubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     try {
-      // Normaliza el email que vamos a enviar (por seguridad)
       const normalizedEmail = (userEmailFor2FA || '').trim().toLowerCase();
       const res = await verify2faLogin(normalizedEmail, twoFactorCode);
 
-      // Si la verificación es exitosa, se recibe el token
       if (typeof window !== 'undefined') {
         localStorage.setItem('token', res.token);
       }
@@ -235,6 +222,31 @@ function LoginContent() {
 
   return (
     <div className="min-h-screen bg-gray-100 dark:bg-gray-900 flex items-center justify-center">
+      {/* Mensaje global: fixed para evitar recorte por overflow en el layout.
+          Soporta multilínea, scroll si es largo, y tiene icono según tipo. */}
+      {message && (
+        <div
+          role={messageType === 'error' ? 'alert' : 'status'}
+          aria-live="polite"
+          className={`fixed top-4 left-1/2 transform -translate-x-1/2 z-[100] w-[min(95vw,900px)] max-w-[900px] px-4 py-3 rounded-md shadow-lg text-sm sm:text-base break-words whitespace-normal max-h-36 overflow-auto flex items-start gap-3`}
+          style={{
+            background: messageType === 'success' ? 'rgba(236,253,245,0.98)' : 'rgba(254,242,242,0.98)',
+            color: messageType === 'success' ? '#065f46' : '#7f1d1d',
+            border: messageType === 'success' ? '1px solid rgba(34,197,94,0.15)' : '1px solid rgba(239,68,68,0.12)',
+            boxShadow: '0 6px 22px rgba(2,6,23,0.08)',
+          }}
+        >
+          <div className="mt-0.5">
+            {messageType === 'success' ? (
+              <FaCheckCircle className="flex-shrink-0" size={20} />
+            ) : (
+              <FaExclamationTriangle className="flex-shrink-0" size={20} />
+            )}
+          </div>
+          <div className="text-left">{message}</div>
+        </div>
+      )}
+
       <div className="hidden lg:block lg:w-5/12 relative h-screen">
         <div className="absolute inset-0">
           <div className="relative w-full h-full">
@@ -245,32 +257,17 @@ function LoginContent() {
       </div>
 
       <div className="flex-1 flex items-center justify-center px-6 py-8 w-full">
-        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8 w-full max-w-md overflow-auto max-h-[90vh] relative">
-          {message && (
-            <div
-              role="status"
-              aria-live="polite"
-              className={`absolute -top-4 left-1/2 transform -translate-x-1/2 w-[90%] px-4 py-2 rounded-md text-sm font-medium ${
-                messageType === 'success'
-                  ? 'bg-green-50 text-green-800 ring-1 ring-green-200'
-                  : 'bg-red-50 text-red-800 ring-1 ring-red-200'
-              }`}
-              style={{ zIndex: 60 }}
-            >
-              {message}
-            </div>
-          )}
-
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-6 sm:p-8 w-full max-w-md overflow-auto max-h-[90vh] relative">
           <div className="flex justify-center">
-            <Image src="/logo.png" alt="Logo" style={{ width: '80px', height: '80px' }} />
+            <Image src="/logo.png" alt="Logo" style={{ width: '80px', height: '80px' }} />
           </div>
 
-          {/* Lógica condicional para mostrar el formulario de login o el de 2FA */}
           {!show2FAForm ? (
-            // --- FORMULARIO DE INICIO DE SESIÓN ORIGINAL ---
             <>
-              <h2 className="text-3xl font-bold text-center text-gray-800 dark:text-white">{t('login.title')}</h2>
-              <form onSubmit={handleSubmit} className="space-y-5 mt-4" noValidate>
+              <h2 className="text-2xl sm:text-3xl font-bold text-center text-gray-800 dark:text-white mt-4">
+                {t('login.title')}
+              </h2>
+              <form onSubmit={handleSubmit} className="space-y-4 mt-5" noValidate>
                 <InputField
                   icon={
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="20" height="20" fill="currentColor">
@@ -295,7 +292,11 @@ function LoginContent() {
                   onChange={handleChange}
                   placeholder={t('login.passwordPlaceholder') ?? 'Contraseña'}
                 />
-                <button disabled={loading} type="submit" className="w-full bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 transition font-semibold shadow-md">
+                <button
+                  disabled={loading}
+                  type="submit"
+                  className="w-full bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 transition font-semibold shadow-md"
+                >
                   {loading ? (t('login.loading') ?? 'Ingresando...') : (t('login.submitButton') ?? 'Ingresar')}
                 </button>
               </form>
@@ -307,11 +308,10 @@ function LoginContent() {
               </p>
             </>
           ) : (
-            // --- FORMULARIO DE VERIFICACIÓN 2FA ---
             <div className="text-center w-full max-w-sm mx-auto">
-              <h2 className="text-3xl font-bold text-gray-800 dark:text-white mb-4">{t('login.2faTitle')}</h2>
-              <p className="text-sm text-gray-600 dark:text-gray-300 mb-6">{t('login.2faInstructions')}</p>
-              <form onSubmit={handle2FASubmit} className="space-y-5">
+              <h2 className="text-2xl sm:text-3xl font-bold text-gray-800 dark:text-white mb-3">{t('login.2faTitle')}</h2>
+              <p className="text-sm text-gray-600 dark:text-gray-300 mb-5">{t('login.2faInstructions')}</p>
+              <form onSubmit={handle2FASubmit} className="space-y-4">
                 <InputField
                   icon={
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" width="20" height="20" fill="currentColor">
@@ -324,7 +324,11 @@ function LoginContent() {
                   onChange={handle2FACodeChange}
                   placeholder={t('login.2faCodePlaceholder') ?? 'Código 2FA'}
                 />
-                <button disabled={loading} type="submit" className="w-full bg-green-600 text-white py-3 rounded-lg hover:bg-green-700 transition font-semibold shadow-md">
+                <button
+                  disabled={loading}
+                  type="submit"
+                  className="w-full bg-green-600 text-white py-3 rounded-lg hover:bg-green-700 transition font-semibold shadow-md"
+                >
                   {loading ? (t('login.loading') ?? 'Verificando...') : (t('login.verifyButton') ?? 'Verificar')}
                 </button>
               </form>
@@ -357,7 +361,15 @@ function InputField({ icon, name, value, onChange, placeholder, type = 'text' }:
   return (
     <div className="flex items-center gap-3 border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-3 focus-within:ring-2 focus-within:ring-blue-400">
       <div className="text-blue-500">{icon}</div>
-      <input type={type} name={name} value={value} onChange={onChange} placeholder={placeholder} className="w-full bg-transparent outline-none text-gray-800 dark:text-white" required />
+      <input
+        type={type}
+        name={name}
+        value={value}
+        onChange={onChange}
+        placeholder={placeholder}
+        className="w-full bg-transparent outline-none text-gray-800 dark:text-white"
+        required
+      />
     </div>
   );
 }

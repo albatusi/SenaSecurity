@@ -1,7 +1,7 @@
-// src/app/[ruta]/RegisterPage.tsx (o donde lo tengas)
+// src/app/[ruta]/RegisterPage.tsx
 'use client';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { FaUser, FaEnvelope, FaLock, FaIdCard, FaUserTag, FaCamera } from 'react-icons/fa';
 import Image from 'next/image';
 import { LanguageProvider, useLanguage } from '@/contexts/LanguageContext';
@@ -33,7 +33,34 @@ function RegisterContent() {
     const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string | null>(null);
     const [twoFactorCode, setTwoFactorCode] = useState('');
 
-    const showMessage = (text: string, type: MsgType = 'error') => {
+    // --- Estado y persistencia para la card informativa 2FA ---
+    const INFO_KEY = 'seen_2fa_info_v1';
+    const [show2FAInfoCard, setShow2FAInfoCard] = useState<boolean>(false);
+
+    useEffect(() => {
+        // Al entrar a la página: mostrar modal si no marcó "no volver a mostrar"
+        try {
+            const seen = typeof window !== 'undefined' ? localStorage.getItem(INFO_KEY) : null;
+            setShow2FAInfoCard(!seen);
+        } catch {
+            setShow2FAInfoCard(true);
+        }
+    }, []);
+
+    // Cerrar modal sin recordar la preferencia (se volverá a mostrar la próxima visita)
+    const closeInfo = () => {
+        setShow2FAInfoCard(false);
+    };
+
+    // Guardar preferencia de "No volver a mostrar" y cerrar
+    const neverShowAgain = () => {
+        try {
+            if (typeof window !== 'undefined') localStorage.setItem(INFO_KEY, '1');
+        } catch {}
+        setShow2FAInfoCard(false);
+    };
+
+    const setTempMessage = (text: string, type: MsgType = 'error') => {
         setMessage(text);
         setMessageType(type);
         setTimeout(() => {
@@ -46,7 +73,6 @@ function RegisterContent() {
         setForm({ ...form, [e.target.name]: e.target.value });
     };
 
-    // Nuevo handleChange para el input del código 2FA
     const handle2FACodeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         setTwoFactorCode(e.target.value);
     };
@@ -67,7 +93,7 @@ function RegisterContent() {
         e.preventDefault();
 
         if (form.password !== form.confirmPassword) {
-            showMessage(t('register.passwordMismatch') ?? 'Las contraseñas no coinciden.', 'error');
+            setTempMessage(t('register.passwordMismatch') ?? 'Las contraseñas no coinciden.', 'error');
             return;
         }
 
@@ -93,20 +119,20 @@ function RegisterContent() {
             if (res.qrCodeDataUrl) {
                 setQrCodeDataUrl(res.qrCodeDataUrl);
                 setShow2FAForm(true); // Muestra el formulario de 2FA
-                showMessage(res.message ?? 'Registro exitoso. Escanea el código QR.', 'success');
+                setTempMessage(res.message ?? 'Registro exitoso. Escanea el código QR.', 'success');
             } else {
                 // Si no hay 2FA (caso de respaldo), se completa el registro y se redirige
                 if (typeof window !== 'undefined') {
                     if (res.token) localStorage.setItem('token', res.token);
                     if (res.user) localStorage.setItem('user', JSON.stringify(res.user));
                 }
-                showMessage(res.message ?? (t('register.successMessage') ?? 'Registro exitoso'), 'success');
+                setTempMessage(res.message ?? (t('register.successMessage') ?? 'Registro exitoso'), 'success');
                 setTimeout(() => router.push('/login'), 700);
             }
         } catch (err: unknown) {
             console.error('Registro error:', err);
             const text = err instanceof Error ? err.message : String(err);
-            showMessage(text || 'Error al registrar usuario', 'error');
+            setTempMessage(text || 'Error al registrar usuario', 'error');
         } finally {
             setLoading(false);
         }
@@ -121,27 +147,103 @@ function RegisterContent() {
             const normalizedEmail = (form.email || '').trim().toLowerCase();
             await verify2fa(normalizedEmail, twoFactorCode);
 
-            showMessage(t('register.2faSuccess') ?? '2FA activado exitosamente.', 'success');
+            setTempMessage(t('register.2faSuccess') ?? '2FA activado exitosamente.', 'success');
             // Redirige al login después de la verificación exitosa
             setTimeout(() => router.push('/login'), 1500);
         } catch (err: unknown) {
             console.error('Verificación 2FA error:', err);
             const text = err instanceof Error ? err.message : String(err);
-            showMessage(text || 'Código 2FA inválido. Inténtalo de nuevo.', 'error');
+            setTempMessage(text || 'Código 2FA inválido. Inténtalo de nuevo.', 'error');
         } finally {
             setLoading(false);
         }
     };
 
     return (
-        <div className="min-h-screen bg-gray-300 dark:bg-gray-900 flex items-center justify-center p-4">
-            <div className="w-full flex flex-col lg:flex-row bg-white dark:bg-gray-800 rounded-2xl shadow-2xl overflow-hidden relative max-h-[90vh]">
+        <div className="min-h-screen bg-gray-50 dark:bg-slate-900 flex items-center justify-center p-4">
+            <div className="w-full flex flex-col lg:flex-row bg-white dark:bg-slate-800 rounded-2xl shadow-2xl overflow-hidden relative max-h-[90vh]">
+
+                {/* Modal informativo 2FA (bloquea fondo, centrado, responsive) */}
+                {show2FAInfoCard && (
+                    <div className="fixed inset-0 z-[70] flex items-center justify-center px-4">
+                        {/* Backdrop: cierra modal temporalmente (no recuerda la preferencia) */}
+                        <div
+                            className="absolute inset-0 bg-black/50"
+                            onClick={closeInfo}
+                            aria-hidden="true"
+                        />
+                        <div
+                            role="dialog"
+                            aria-modal="true"
+                            aria-label="Información sobre autenticación en dos pasos"
+                            className="relative w-full max-w-2xl mx-auto rounded-lg shadow-xl overflow-hidden"
+                        >
+                            <div className="bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 p-6 sm:p-8 border border-slate-200 dark:border-slate-700">
+                                <div className="flex flex-col sm:flex-row items-start gap-6">
+                                    <div className="flex-1">
+                                        <h3 className="text-xl font-semibold">Protege tu cuenta con autenticación en 2 pasos</h3>
+                                        <p className="mt-3 text-sm text-slate-700 dark:text-slate-200/90 leading-relaxed">
+                                            Recomendamos activar <strong>2FA</strong> para mayor seguridad. Instala una app autenticadora (Google Authenticator, Authy o Microsoft Authenticator).
+                                            Después del registro podrás escanear un código QR y la app generará los códigos OTP.
+                                        </p>
+
+                                        <div className="mt-5 flex flex-wrap gap-3">
+                                            <a
+                                                target="_blank"
+                                                rel="noreferrer"
+                                                href="https://play.google.com/store/search?q=authenticator"
+                                                className="inline-flex items-center gap-2 px-3 py-1 rounded-md bg-slate-100 dark:bg-slate-700/30 hover:bg-slate-200 dark:hover:bg-slate-700/20 text-sm text-slate-800 dark:text-slate-100"
+                                            >
+                                                Descargar (Android)
+                                            </a>
+                                            <a
+                                                target="_blank"
+                                                rel="noreferrer"
+                                                href="https://apps.apple.com/search?term=authenticator"
+                                                className="inline-flex items-center gap-2 px-3 py-1 rounded-md bg-slate-100 dark:bg-slate-700/30 hover:bg-slate-200 dark:hover:bg-slate-700/20 text-sm text-slate-800 dark:text-slate-100"
+                                            >
+                                                Descargar (iOS)
+                                            </a>
+                                        </div>
+                                    </div>
+
+                                    {/* Acciones */}
+                                    <div className="flex flex-col items-end gap-3">
+                                        <button
+                                            onClick={closeInfo}
+                                            className="w-full sm:w-auto px-4 py-2 rounded-full bg-transparent border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700/20"
+                                        >
+                                            Cerrar
+                                        </button>
+
+                                        <button
+                                            onClick={neverShowAgain}
+                                            className="w-full sm:w-auto px-4 py-2 rounded-full bg-transparent border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 text-sm hover:bg-slate-50 dark:hover:bg-slate-700/20"
+                                        >
+                                            No volver a mostrar
+                                        </button>
+
+                                        <button
+                                            onClick={() => setShow2FAInfoCard(false)}
+                                            className="w-full sm:w-auto px-4 py-2 rounded-full bg-slate-900 text-white hover:brightness-95"
+                                            aria-label="Entendido"
+                                        >
+                                            Entendido
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
                 {message && (
                     <div
                         role="status"
                         aria-live="polite"
                         className={`absolute top-4 left-1/2 -translate-x-1/2 z-50 w-[90%] max-w-2xl px-4 py-2 rounded-md text-sm font-medium ${messageType === 'success' ? 'bg-green-50 text-green-800 ring-1 ring-green-200' : 'bg-red-50 text-red-800 ring-1 ring-red-200'
                             }`}
+                        style={{ zIndex: 60 }}
                     >
                         {message}
                     </div>
@@ -153,7 +255,7 @@ function RegisterContent() {
 
                 <div className="w-full lg:w-7/12 p-6 sm:p-10 flex flex-col items-center overflow-auto">
                     <div className="flex justify-center mb-6">
-                        <Image src="/logo.png" alt="Logo" style={{ width: '80px', height: '80px' }}/>
+                        <Image src="/logo.png" alt="Logo" style={{ width: '80px', height: '80px' }} />
                     </div>
 
                     {/* Lógica de renderizado condicional */}

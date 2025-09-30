@@ -1,4 +1,5 @@
 'use client';
+
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { FaUsers, FaCar, FaCalendarDay, FaArrowRight } from 'react-icons/fa';
@@ -143,11 +144,11 @@ export default function DashboardAdmin() {
   if (!isAdmin) return null;
 
   return (
-    <div className="space-y-8 px-4 sm:px-6 lg:px-8">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
       <div ref={liveRef} aria-live="polite" aria-atomic="true" className="sr-only" />
 
       <div className="text-center space-y-2">
-        <h1 className="text-3xl font-semibold text-slate-800 dark:text-slate-100">
+        <h1 className="text-2xl sm:text-3xl font-semibold text-slate-800 dark:text-slate-100">
           <span className="inline-flex items-center gap-2">
             <FaUsers className="text-slate-600 dark:text-slate-300" />
             {t('dashboard.homePanel')}
@@ -156,16 +157,18 @@ export default function DashboardAdmin() {
         <p className="text-sm text-slate-500 dark:text-slate-400">{t('dashboard.quickSummary')}</p>
       </div>
 
-      {/* KPIs y resto de UI (sin cambios funcionales) */}
+      {/* KPIs */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         <div className="rounded-xl p-4 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 shadow-sm">
           <p className="text-xs text-slate-500 dark:text-slate-400">{t('dashboard.totalUsersLabel')}</p>
           <h2 className="text-2xl font-bold text-slate-800 dark:text-slate-100">{totalUsers}</h2>
         </div>
+
         <div className="rounded-xl p-4 bg-emerald-50 dark:bg-emerald-900/10 border border-emerald-100 dark:border-emerald-700 shadow-sm">
           <p className="text-xs text-emerald-600 dark:text-emerald-300">{t('dashboard.activeLabel')}</p>
           <h2 className="text-2xl font-bold text-slate-800 dark:text-slate-100">{activeUsers}</h2>
         </div>
+
         <div className="rounded-xl p-4 bg-indigo-50 dark:bg-indigo-900/10 border border-indigo-100 dark:border-indigo-700 shadow-sm">
           <p className="text-xs text-indigo-600 dark:text-indigo-300">{t('dashboard.registeredTodayLabel')}</p>
           <h2 className="text-2xl font-bold text-slate-800 dark:text-slate-100">{usersToday}</h2>
@@ -177,73 +180,54 @@ export default function DashboardAdmin() {
           <p className="text-xs text-amber-700 dark:text-amber-300">{t('dashboard.registeredCars')}</p>
           <h2 className="text-2xl font-bold text-slate-800 dark:text-slate-100">{mockCars.length}</h2>
         </div>
+
         <div className="rounded-xl p-4 bg-sky-50 dark:bg-sky-900/10 border border-sky-100 dark:border-sky-700 shadow-sm text-center">
           <p className="text-xs text-sky-700 dark:text-sky-300">{t('dashboard.carsTodayLabel')}</p>
           <h2 className="text-2xl font-bold text-slate-800 dark:text-slate-100">{carsToday}</h2>
         </div>
       </div>
 
+      {/* Quick access */}
       <div>
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-xl font-medium text-slate-700 dark:text-slate-200">{t('dashboard.quickAccessTitle')}</h2>
-          <div className="text-sm text-slate-500 dark:text-slate-400">
-            <span className="mr-3">{t('dashboard.shortcuts') ?? 'Atajos:'}</span>
-            <kbd className="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-700 text-xs">Alt/⌘ + 1</kbd>
-            <span className="mx-1 text-slate-400">/</span>
-            <kbd className="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-700 text-xs">Alt/⌘ + 2</kbd>
-            <span className="mx-1 text-slate-400">/</span>
-            <kbd className="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-700 text-xs">Alt/⌘ + 3</kbd>
+          <h2 className="text-lg sm:text-xl font-medium text-slate-700 dark:text-slate-200">{t('dashboard.quickAccessTitle')}</h2>
+          <div className="text-sm text-slate-500 dark:text-slate-400 flex items-center gap-2">
+            <span className="hidden sm:inline">{t('dashboard.shortcuts') ?? 'Atajos:'}</span>
+            <div className="flex items-center gap-1">
+              <kbd className="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-700 text-xs">Alt/⌘ + 1</kbd>
+              <span className="mx-1 text-slate-400">/</span>
+              <kbd className="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-700 text-xs">Alt/⌘ + 2</kbd>
+              <span className="mx-1 text-slate-400">/</span>
+              <kbd className="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-700 text-xs">Alt/⌘ + 3</kbd>
+            </div>
           </div>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          <button
-            type="button"
+          <AccessibleCard
+            icon={<FaUsers className="text-slate-600 dark:text-slate-300 text-3xl" />}
+            title={t('dashboard.profileTitle')}
+            description={t('dashboard.profileDescription')}
             onClick={() => navigateAndAnnounce(ROUTES.profile, t('dashboard.profileTitle') ?? 'Perfil')}
-            aria-label={t('dashboard.profileTitle')}
-            aria-describedby="q-access-profile-desc"
-            className="flex flex-col items-center gap-3 p-5 rounded-xl bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 shadow-sm hover:shadow-md transition focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-slate-300"
-          >
-            <FaUsers className="text-slate-600 dark:text-slate-300 text-3xl" />
-            <div className="font-semibold text-slate-800 dark:text-slate-100">{t('dashboard.profileTitle')}</div>
-            <div id="q-access-profile-desc" className="text-sm text-slate-500 dark:text-slate-400">
-              {t('dashboard.profileDescription')}
-            </div>
-            <FaArrowRight className="text-slate-400 dark:text-slate-500 mt-2" />
-          </button>
+          />
 
-          <button
-            type="button"
+          <AccessibleCard
+            icon={<FaCalendarDay className="text-slate-600 dark:text-slate-300 text-3xl" />}
+            title={t('dashboard.configurationTitle')}
+            description={t('dashboard.configurationDescription')}
             onClick={() => navigateAndAnnounce(ROUTES.config, t('dashboard.configurationTitle') ?? 'Configuración')}
-            aria-label={t('dashboard.configurationTitle')}
-            aria-describedby="q-access-config-desc"
-            className="flex flex-col items-center gap-3 p-5 rounded-xl bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 shadow-sm hover:shadow-md transition focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-slate-300"
-          >
-            <FaCalendarDay className="text-slate-600 dark:text-slate-300 text-3xl" />
-            <div className="font-semibold text-slate-800 dark:text-slate-100">{t('dashboard.configurationTitle')}</div>
-            <div id="q-access-config-desc" className="text-sm text-slate-500 dark:text-slate-400">
-              {t('dashboard.configurationDescription')}
-            </div>
-            <FaArrowRight className="text-slate-400 dark:text-slate-500 mt-2" />
-          </button>
+          />
 
-          <button
-            type="button"
+          <AccessibleCard
+            icon={<FaCar className="text-slate-600 dark:text-slate-300 text-3xl" />}
+            title={t('dashboard.vehiclesTitle')}
+            description={t('dashboard.vehiclesDescription')}
             onClick={() => navigateAndAnnounce(ROUTES.vehicles, t('dashboard.vehiclesTitle') ?? 'Vehículos')}
-            aria-label={t('dashboard.vehiclesTitle')}
-            aria-describedby="q-access-vehicles-desc"
-            className="flex flex-col items-center gap-3 p-5 rounded-xl bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 shadow-sm hover:shadow-md transition focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-slate-300"
-          >
-            <FaCar className="text-slate-600 dark:text-slate-300 text-3xl" />
-            <div className="font-semibold text-slate-800 dark:text-slate-100">{t('dashboard.vehiclesTitle')}</div>
-            <div id="q-access-vehicles-desc" className="text-sm text-slate-500 dark:text-slate-400">
-              {t('dashboard.vehiclesDescription')}
-            </div>
-            <FaArrowRight className="text-slate-400 dark:text-slate-500 mt-2" />
-          </button>
+          />
         </div>
       </div>
 
+      {/* Search input (responsive width) */}
       <div className="flex justify-end">
         <input
           type="text"
@@ -255,31 +239,92 @@ export default function DashboardAdmin() {
         />
       </div>
 
-      <div className="bg-white dark:bg-slate-800 shadow-md rounded-2xl overflow-hidden border border-slate-100 dark:border-slate-700">
-        <table className="w-full text-left" role="table" aria-label={t('dashboard.usersTableAria') ?? 'Users'}>
-          <thead className="bg-slate-50 dark:bg-slate-900">
-            <tr>
-              <th className="px-6 py-3 text-sm font-medium text-slate-600 dark:text-slate-300">{t('dashboard.nameColumn')}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredUsers.length > 0 ? (
-              filteredUsers.map((user) => (
-                <tr
-                  key={user.id}
-                  className="border-t border-slate-100 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 transition"
-                >
-                  <td className="px-6 py-3 text-slate-700 dark:text-slate-100">{user.name}</td>
-                </tr>
-              ))
-            ) : (
+      {/* Users list: table on md+, cards on mobile */}
+      <div className="rounded-2xl overflow-hidden">
+        {/* Mobile: card list */}
+        <div className="md:hidden space-y-3">
+          {filteredUsers.length > 0 ? (
+            filteredUsers.map((u) => (
+              <div key={u.id} className="p-4 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-lg shadow-sm">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="font-medium text-slate-800 dark:text-slate-100">{u.name}</div>
+                    <div className="text-sm text-slate-500 dark:text-slate-400 truncate">{u.email}</div>
+                  </div>
+                  <div className="text-sm">
+                    <span className={`px-2 py-1 rounded-full text-xs font-semibold ${u.status === 'active' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-700/20' : 'bg-rose-100 text-rose-700 dark:bg-rose-700/20'}`}>
+                      {u.status}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            ))
+          ) : (
+            <div className="p-4 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-lg text-center text-slate-500 dark:text-slate-400">
+              {t('dashboard.noUsersFound')}
+            </div>
+          )}
+        </div>
+
+        {/* Desktop/tablet: table view */}
+        <div className="hidden md:block bg-white dark:bg-slate-800 shadow-md rounded-2xl overflow-x-auto border border-slate-100 dark:border-slate-700">
+          <table className="w-full min-w-[640px] text-left">
+            <thead className="bg-slate-50 dark:bg-slate-900">
               <tr>
-                <td className="px-6 py-4 text-center text-slate-500 dark:text-slate-400">{t('dashboard.noUsersFound')}</td>
+                <th className="px-6 py-3 text-sm font-medium text-slate-600 dark:text-slate-300">{t('dashboard.nameColumn')}</th>
+                <th className="px-6 py-3 text-sm font-medium text-slate-600 dark:text-slate-300">{t('dashboard.emailColumn') ?? 'Email'}</th>
+                <th className="px-6 py-3 text-sm font-medium text-slate-600 dark:text-slate-300">{t('dashboard.statusColumn') ?? 'Estado'}</th>
+                <th className="px-6 py-3 text-sm font-medium text-slate-600 dark:text-slate-300">{t('dashboard.registeredAtColumn') ?? 'Registrado'}</th>
               </tr>
-            )}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {filteredUsers.length > 0 ? (
+                filteredUsers.map((user) => (
+                  <tr key={user.id} className="border-t border-slate-100 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 transition">
+                    <td className="px-6 py-4 text-slate-700 dark:text-slate-100">{user.name}</td>
+                    <td className="px-6 py-4 text-slate-500 dark:text-slate-400">{user.email}</td>
+                    <td className="px-6 py-4">
+                      <span className={`px-3 py-1 rounded-full text-sm font-semibold ${user.status === 'active' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-700/20 dark:text-emerald-100' : 'bg-rose-100 text-rose-700 dark:bg-rose-700/20 dark:text-rose-100'}`}>
+                        {user.status}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-slate-500 dark:text-slate-400">{user.registeredAt}</td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td className="px-6 py-6 text-center text-slate-500 dark:text-slate-400" colSpan={4}>
+                    {t('dashboard.noUsersFound')}
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
+  );
+}
+
+/* Small accessible card used in quick access */
+function AccessibleCard({ icon, title, description, onClick }: { icon: React.ReactNode; title: string; description?: string; onClick: () => void; }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex flex-col items-start gap-3 p-4 rounded-xl bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 shadow-sm hover:shadow-md transition focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-slate-300 w-full"
+      aria-label={title}
+    >
+      <div className="flex items-center justify-center w-12 h-12 rounded-md bg-slate-100 dark:bg-slate-700">
+        {icon}
+      </div>
+      <div className="text-left">
+        <div className="font-semibold text-slate-800 dark:text-slate-100">{title}</div>
+        {description && <div className="text-sm text-slate-500 dark:text-slate-400 mt-1">{description}</div>}
+      </div>
+      <div className="ml-auto mt-2">
+        <FaArrowRight className="text-slate-400 dark:text-slate-500" />
+      </div>
+    </button>
   );
 }
