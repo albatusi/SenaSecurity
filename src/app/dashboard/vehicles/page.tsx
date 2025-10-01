@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 
-// Lee NEXT_PUBLIC_API_URL y asegura que termine en /api (pero sin doble slash)
+// Lee NEXT_PUBLIC_API_URL y asegura que termine en /api (sin doble slash)
 const RAW_BASE = (process.env.NEXT_PUBLIC_API_URL || '').replace(/\/+$/, '');
 const API_BASE_URL = RAW_BASE.endsWith('/api') ? RAW_BASE : `${RAW_BASE}/api`;
 
@@ -171,7 +171,7 @@ const useVehiclesAPI = (t: TranslateFunction) => {
 // Componente
 export default function VehiclesPage() {
   const { t } = useLanguage();
-  const { vehicles, isLoading, error, clearError, saveVehicle, deleteVehicle } = useVehiclesAPI(t);
+  const { vehicles, isLoading, error, clearError, fetchVehicles, saveVehicle, deleteVehicle } = useVehiclesAPI(t);
 
   const [form, setForm] = useState({ name: '', plate: '', type: 'carro' as Vehicle['type'] });
   const [query, setQuery] = useState('');
@@ -183,6 +183,7 @@ export default function VehiclesPage() {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const [cameraStarted, setCameraStarted] = useState(false);
   const [recognizing, setRecognizing] = useState(false);
   const [lastConfidence, setLastConfidence] = useState<number | null>(null);
   const [facePhoto, setFacePhoto] = useState<string | null>(null);
@@ -209,22 +210,31 @@ export default function VehiclesPage() {
   }, []);
 
   const stopCamera = useCallback(() => {
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((t) => t.stop());
-      streamRef.current = null;
-    }
-    if (videoRef.current) {
-      try {
-        videoRef.current.pause();
-        (videoRef.current as HTMLVideoElement).srcObject = null;
-      } catch {
-        // ignore
+    try {
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((t) => t.stop());
+        streamRef.current = null;
       }
+      if (videoRef.current) {
+        try {
+          videoRef.current.pause();
+        } catch {}
+        try {
+          (videoRef.current as HTMLVideoElement).srcObject = null;
+        } catch {}
+      }
+    } finally {
+      setCameraStarted(false);
     }
   }, []);
 
   const startCamera = useCallback(async () => {
-    if (streamRef.current) return;
+    // no double start
+    if (streamRef.current) {
+      setCameraStarted(true);
+      return;
+    }
+
     try {
       if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
         setMessage(t('vehicles.browserNotSupported') ?? 'Tu navegador no soporta cámara');
@@ -244,22 +254,22 @@ export default function VehiclesPage() {
           // autoplay blocked
         }
       }
+      setCameraStarted(true);
       setMessage(t('vehicles.cameraStarted') ?? 'Cámara iniciada');
     } catch (err: unknown) {
       console.error('Error iniciando cámara', err);
-      setMessage(t('vehicles.cameraError') ?? `Error al iniciar la cámara: ${getErrorMessage(err)}`);
+      setMessage(t('vehicles.cameraError') ?? `No se pudo acceder a la cámara (revisa permisos): ${getErrorMessage(err)}`);
       stopCamera();
     }
   }, [t, stopCamera]);
 
+  // No iniciamos la cámara automáticamente. Solo limpiamos al desmontar.
   useEffect(() => {
-    if (mode === 'auto' || mode === 'manual') startCamera();
-    else stopCamera();
-
     return () => {
       if (streamRef.current) stopCamera();
     };
-  }, [mode, startCamera, stopCamera]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const validatePlate = (plate: string) => {
     const cleaned = plate.trim().toUpperCase();
@@ -348,7 +358,7 @@ export default function VehiclesPage() {
 
   const captureAndRecognize = async () => {
     const video = videoRef.current;
-    if (!video || video.paused || video.ended || video.srcObject === null) {
+    if (!video || !streamRef.current) {
       return setMessage(t('vehicles.cameraNotStarted') ?? 'Cámara no iniciada');
     }
     if (!PLATE_API_KEY) return setMessage(t('vehicles.missingApiKey') ?? 'Falta API key');
@@ -433,8 +443,7 @@ export default function VehiclesPage() {
 
   const captureFacePhoto = () => {
     const video = videoRef.current;
-    if (!video || video.paused || video.ended || video.srcObject === null)
-      return setMessage(t('vehicles.cameraNotStarted') ?? 'Cámara no iniciada');
+    if (!video || !streamRef.current) return setMessage(t('vehicles.cameraNotStarted') ?? 'Cámara no iniciada');
 
     const canvas = getCanvas();
     canvas.width = video.videoWidth || 1280;
@@ -459,7 +468,7 @@ export default function VehiclesPage() {
             <p className="text-sm text-gray-500 dark:text-gray-400 truncate">{t('vehicles.subtitle') ?? 'Gestión de acceso y registro de vehículos en el sistema.'}</p>
           </div>
 
-          <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+          <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto items-center">
             <input
               type="search"
               placeholder={t('vehicles.searchPlaceholder') ?? 'Buscar por nombre o placa...'}
@@ -468,9 +477,14 @@ export default function VehiclesPage() {
               className="px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-400 dark:bg-gray-800 dark:text-white w-full sm:w-72"
               aria-label="Buscar vehículo"
             />
-            <button onClick={exportCSV} className="px-3 py-2 bg-green-600 text-white rounded-md hover:brightness-90 w-full sm:w-auto" type="button">
-              {t('vehicles.exportCSV') ?? 'Exportar CSV'}
-            </button>
+            <div className="flex gap-2">
+              <button onClick={exportCSV} className="px-3 py-2 bg-green-600 text-white rounded-md hover:brightness-90 w-full sm:w-auto" type="button">
+                {t('vehicles.exportCSV') ?? 'Exportar CSV'}
+              </button>
+              <button onClick={() => fetchVehicles()} className="px-3 py-2 bg-gray-200 dark:bg-gray-700 rounded-md" type="button">
+                {t('vehicles.refresh') ?? 'Refrescar'}
+              </button>
+            </div>
           </div>
         </div>
 
@@ -491,7 +505,20 @@ export default function VehiclesPage() {
           >
             {t('vehicles.autoMode') ?? 'Automático'}
           </button>
-          {!PLATE_API_KEY && <div className="text-red-500 text-sm flex items-center">🚨 Falta API Key</div>}
+
+          {/* Iniciar / Detener cámara explícito */}
+          <div className="flex items-center gap-2 ml-2">
+            {!cameraStarted ? (
+              <button type="button" onClick={() => startCamera()} className="px-3 py-2 bg-yellow-500 text-white rounded-md hover:brightness-90">
+                {t('vehicles.startCamera') ?? 'Iniciar cámara'}
+              </button>
+            ) : (
+              <button type="button" onClick={() => stopCamera()} className="px-3 py-2 bg-red-500 text-white rounded-md hover:brightness-90">
+                {t('vehicles.stopCamera') ?? 'Detener cámara'}
+              </button>
+            )}
+          </div>
+          {!PLATE_API_KEY && <div className="text-red-500 text-sm flex items-center ml-2">🚨 Falta API Key</div>}
         </div>
 
         {(mode === 'manual' || mode === 'auto') && (
@@ -581,7 +608,7 @@ export default function VehiclesPage() {
               </div>
 
               <div className="mt-3 flex flex-col sm:flex-row gap-2">
-                <button type="button" onClick={captureAndRecognize} disabled={recognizing} className="w-full sm:w-auto px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-60">
+                <button type="button" onClick={captureAndRecognize} disabled={recognizing || !PLATE_API_KEY} className="w-full sm:w-auto px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-60">
                   {recognizing ? t('vehicles.processing') ?? 'Procesando...' : t('vehicles.captureAndRecognize') ?? 'Capturar y reconocer'}
                 </button>
 
