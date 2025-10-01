@@ -3,10 +3,9 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 
-// 🎯 CONFIGURACIÓN CLAVE: Define la URL base de la API
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL || '';
-// Normalizar: quitar slash final si existe
-const API_BASE_URL = BASE_URL.replace(/\/+$/, '');
+// Lee NEXT_PUBLIC_API_URL y asegura que termine en /api (pero sin doble slash)
+const RAW_BASE = (process.env.NEXT_PUBLIC_API_URL || '').replace(/\/+$/, '');
+const API_BASE_URL = RAW_BASE.endsWith('/api') ? RAW_BASE : `${RAW_BASE}/api`;
 
 type Vehicle = {
   id: number;
@@ -17,7 +16,6 @@ type Vehicle = {
   facePhoto?: string | null;
 };
 
-/* Types para PlateRecognizer (simplificados) */
 interface PlateResult {
   plate?: string;
   score?: number;
@@ -26,10 +24,8 @@ interface PlateResult {
 
 interface PlateRecognizerResponse {
   results?: PlateResult[];
-  // otros campos ignorados
 }
 
-// Helper: lee body como texto y trata de parsear JSON si corresponde
 async function readBodyAsMaybeJson(res: Response): Promise<unknown | null> {
   const text = await res.text();
   if (!text) return null;
@@ -40,7 +36,7 @@ async function readBodyAsMaybeJson(res: Response): Promise<unknown | null> {
   }
 }
 
-function extractMessage(body: unknown, fallback: string): string {
+function extractMessage(body: unknown, fallback: string) {
   if (typeof body === 'string') return body;
   if (body && typeof body === 'object') {
     const b = body as Record<string, unknown>;
@@ -50,7 +46,7 @@ function extractMessage(body: unknown, fallback: string): string {
   return fallback;
 }
 
-function getErrorMessage(err: unknown): string {
+function getErrorMessage(err: unknown) {
   if (err instanceof Error) return err.message;
   if (typeof err === 'string') return err;
   try {
@@ -60,11 +56,7 @@ function getErrorMessage(err: unknown): string {
   }
 }
 
-// ----------------------------------------------------
-// ✅ HOOK PERSONALIZADO PARA LÓGICA DE API
-// ----------------------------------------------------
-
-// Define el tipo para la función de traducción
+// Hook para API
 type TranslateFunction = (key: string) => string | undefined;
 
 const useVehiclesAPI = (t: TranslateFunction) => {
@@ -81,13 +73,13 @@ const useVehiclesAPI = (t: TranslateFunction) => {
       return;
     }
 
-    const url = `${API_BASE_URL}/vehicles`.replace(/\/+$/, '');
+    const url = `${API_BASE_URL}/vehicles`;
 
     setIsLoading(true);
     setError(null);
+
     try {
       const response = await fetch(url);
-
       const parsed = await readBodyAsMaybeJson(response);
 
       if (!response.ok) {
@@ -105,7 +97,6 @@ const useVehiclesAPI = (t: TranslateFunction) => {
     }
   }, [t]);
 
-  // Se ejecuta al montar
   useEffect(() => {
     fetchVehicles();
   }, [fetchVehicles]);
@@ -130,7 +121,7 @@ const useVehiclesAPI = (t: TranslateFunction) => {
           throw new Error(message);
         }
 
-        await fetchVehicles(); // Recargar lista
+        await fetchVehicles();
         return {
           success: true,
           message: isEditing
@@ -162,7 +153,7 @@ const useVehiclesAPI = (t: TranslateFunction) => {
           throw new Error(message);
         }
 
-        await fetchVehicles(); // Recargar lista
+        await fetchVehicles();
         return { success: true, message: t('vehicles.vehicleDeleted') ?? 'Vehículo eliminado' };
       } catch (err: unknown) {
         console.error('Error deleting vehicle:', err);
@@ -177,12 +168,9 @@ const useVehiclesAPI = (t: TranslateFunction) => {
   return { vehicles, isLoading, error, clearError, fetchVehicles, saveVehicle, deleteVehicle };
 };
 
-// ----------------------------------------------------
-// COMPONENTE PRINCIPAL
-// ----------------------------------------------------
+// Componente
 export default function VehiclesPage() {
   const { t } = useLanguage();
-  // No extraer fetchVehicles aquí si no lo vas a usar directamente (evita eslint no-unused-vars)
   const { vehicles, isLoading, error, clearError, saveVehicle, deleteVehicle } = useVehiclesAPI(t);
 
   const [form, setForm] = useState({ name: '', plate: '', type: 'carro' as Vehicle['type'] });
@@ -190,12 +178,9 @@ export default function VehiclesPage() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
-  // 'manual': captura manual o solo para mostrar | 'auto': reconocimiento automático
   const [mode, setMode] = useState<'manual' | 'auto'>('manual');
 
-  // Lógica de cámara y reconocimiento
   const videoRef = useRef<HTMLVideoElement | null>(null);
-  // Reutiliza un único canvas para todas las operaciones (captura rostro y reconocimiento)
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const [recognizing, setRecognizing] = useState(false);
@@ -205,105 +190,74 @@ export default function VehiclesPage() {
 
   const PLATE_API_KEY = process.env.NEXT_PUBLIC_PLATE_API_KEY ?? '';
 
-  // Mostrar la configuración en consola para diagnosticar despliegue (temporal)
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      // eslint-disable-next-line no-console
-      console.log('DEBUG: NEXT_PUBLIC_API_URL =', process.env.NEXT_PUBLIC_API_URL);
-      // eslint-disable-next-line no-console
-      console.log('DEBUG: NEXT_PUBLIC_PLATE_API_KEY present?', !!process.env.NEXT_PUBLIC_PLATE_API_KEY);
-    }
-  }, []);
-
-  // Manejo de mensajes de éxito/error del componente
   useEffect(() => {
     if (error) {
       setMessage(error);
-      clearError(); // Limpia el error del hook después de mostrarlo
+      clearError();
     }
   }, [error, clearError]);
 
-  // Temporizador para limpiar el mensaje
   useEffect(() => {
     if (!message) return;
     const tmo = setTimeout(() => setMessage(null), 4000);
     return () => clearTimeout(tmo);
   }, [message]);
 
-  // Función de utilería para crear o obtener el canvas (siempre devuelve uno)
   const getCanvas = useCallback(() => {
-    if (!canvasRef.current) {
-      // Crea el canvas si aún no existe
-      canvasRef.current = document.createElement('canvas');
-    }
+    if (!canvasRef.current) canvasRef.current = document.createElement('canvas');
     return canvasRef.current;
   }, []);
 
   const stopCamera = useCallback(() => {
     if (streamRef.current) {
-      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current.getTracks().forEach((t) => t.stop());
       streamRef.current = null;
     }
     if (videoRef.current) {
       try {
         videoRef.current.pause();
-        // Limpiar srcObject para liberar recursos, usando una asignación segura
         (videoRef.current as HTMLVideoElement).srcObject = null;
       } catch {
-        // Ignorar errores de DOM al limpiar
+        // ignore
       }
     }
   }, []);
 
   const startCamera = useCallback(async () => {
-    if (streamRef.current) return; // Ya está iniciada
-
+    if (streamRef.current) return;
     try {
-      if (typeof navigator === 'undefined' || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
         setMessage(t('vehicles.browserNotSupported') ?? 'Tu navegador no soporta cámara');
         return;
       }
-
       const constraints: MediaStreamConstraints = {
-        // Preferir la cámara trasera (entorno)
         video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } },
         audio: false,
       };
-
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
       streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         try {
-          // Intentar reproducir el video (puede fallar por políticas de autoplay)
           await videoRef.current.play();
         } catch {
-          // autoplay bloqueado
+          // autoplay blocked
         }
       }
       setMessage(t('vehicles.cameraStarted') ?? 'Cámara iniciada');
     } catch (err: unknown) {
       console.error('Error iniciando cámara', err);
-      const msg = getErrorMessage(err);
-      setMessage(t('vehicles.cameraError') ?? `Error al iniciar la cámara: ${msg}`);
-      stopCamera(); // Asegurar la detención en caso de error
+      setMessage(t('vehicles.cameraError') ?? `Error al iniciar la cámara: ${getErrorMessage(err)}`);
+      stopCamera();
     }
   }, [t, stopCamera]);
 
-  // Lógica de cámara: Se activa/desactiva al cambiar de modo
   useEffect(() => {
-    if (mode === 'auto' || mode === 'manual') {
-      startCamera();
-    } else {
-      // Si el modo cambia a algo que no requiere cámara, la detiene
-      stopCamera();
-    }
+    if (mode === 'auto' || mode === 'manual') startCamera();
+    else stopCamera();
 
-    // Cleanup: se ejecuta al desmontar el componente o antes de que 'mode' cambie
     return () => {
-      if (streamRef.current) {
-        stopCamera();
-      }
+      if (streamRef.current) stopCamera();
     };
   }, [mode, startCamera, stopCamera]);
 
@@ -317,39 +271,24 @@ export default function VehiclesPage() {
     setFacePhoto(null);
   };
 
-  // ------------------------------------------------------------------
-  // 1. LÓGICA DE CREACIÓN/ACTUALIZACIÓN (POST/PUT) - Usa Hook
-  // ------------------------------------------------------------------
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const { name: formName, plate: formPlate, type: formType } = form; // Desestructuración
-
-    const name = formName.trim();
-    const plate = validatePlate(formPlate || '');
+    const name = form.name.trim();
+    const plate = validatePlate(form.plate || '');
     if (!name) return setMessage(t('vehicles.nameRequired') ?? 'Nombre requerido');
     if (!plate) return setMessage(t('vehicles.invalidPlate') ?? 'Placa inválida');
 
-    // Duplicado check local (el backend también lo hace)
     const duplicate = vehicles.find((v) => v.plate === plate && v.id !== editingId);
     if (duplicate) return setMessage(t('vehicles.duplicatePlate') ?? 'Placa duplicada');
 
-    const vehicleDataToSend: Omit<Vehicle, 'id' | 'createdAt'> = {
-      name,
-      plate,
-      type: formType,
-      facePhoto, // Envía la Data URL (string)
-    };
+    const vehicleData: Omit<Vehicle, 'id' | 'createdAt'> = { name, plate, type: form.type, facePhoto };
 
-    const result = await saveVehicle(vehicleDataToSend, editingId);
-
+    const result = await saveVehicle(vehicleData, editingId);
     if (result.success) {
       setMessage(result.message);
       setEditingId(null);
       resetForm();
-      // Opcional: Volver a manual si viene de auto mode y fue registro exitoso
-      if (mode === 'auto' && !editingId) {
-        setMode('manual');
-      }
+      if (mode === 'auto' && !editingId) setMode('manual');
     }
   };
 
@@ -360,18 +299,11 @@ export default function VehiclesPage() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // --------------------------------------------------
-  // 2. LÓGICA DE ELIMINACIÓN (DELETE) - Usa Hook
-  // --------------------------------------------------
   const handleDelete = async (id: number) => {
     const ok = confirm(t('vehicles.deleteConfirm') ?? '¿Eliminar este vehículo?');
     if (!ok) return;
-
     const result = await deleteVehicle(id);
-
-    if (result.success) {
-      setMessage(result.message);
-    }
+    if (result.success) setMessage(result.message);
   };
 
   const filtered = useMemo(() => {
@@ -390,7 +322,6 @@ export default function VehiclesPage() {
           .map((c) => {
             const cell = String(c ?? '');
             const escaped = cell.replace(/"/g, '""');
-            // Encapsular en comillas si contiene comas, comillas o saltos de línea
             if (/[",\n]/.test(cell)) return `"${escaped}"`;
             return escaped;
           })
@@ -415,19 +346,16 @@ export default function VehiclesPage() {
     resetForm();
   };
 
-  // ----- AUTOMÁTICO: captura y reconocimiento (usa API externa, no afecta backend) -----
   const captureAndRecognize = async () => {
     const video = videoRef.current;
     if (!video || video.paused || video.ended || video.srcObject === null) {
       return setMessage(t('vehicles.cameraNotStarted') ?? 'Cámara no iniciada');
     }
-    if (!PLATE_API_KEY) {
-      return setMessage(t('vehicles.missingApiKey') ?? 'Falta API key de Plate Recognizer');
-    }
+    if (!PLATE_API_KEY) return setMessage(t('vehicles.missingApiKey') ?? 'Falta API key');
 
     try {
       setRecognizing(true);
-      setLastConfidence(null); // Resetear confianza
+      setLastConfidence(null);
       setMessage(t('vehicles.sendingRecognition') ?? 'Enviando a reconocimiento...');
 
       const canvas = getCanvas();
@@ -437,18 +365,12 @@ export default function VehiclesPage() {
       if (!ctx) throw new Error('No se pudo crear contexto del canvas');
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-      const blob: Blob | null = await new Promise((resolve) =>
-        // Reducir calidad a 0.7 para envíos más rápidos
-        canvas.toBlob((b) => resolve(b), 'image/jpeg', 0.7)
-      );
-
-      if (!blob) {
-        throw new Error(t('vehicles.captureError') ?? 'Error al capturar');
-      }
+      const blob: Blob | null = await new Promise((resolve) => canvas.toBlob((b) => resolve(b), 'image/jpeg', 0.7));
+      if (!blob) throw new Error(t('vehicles.captureError') ?? 'Error al capturar');
 
       const formData = new FormData();
       formData.append('upload', blob, 'plate.jpg');
-      formData.append('regions', 'co'); // Asumiendo Colombia por el código original (ajustar si es necesario)
+      formData.append('regions', 'co');
 
       const res = await fetch('https://api.platerecognizer.com/v1/plate-reader/', {
         method: 'POST',
@@ -468,10 +390,8 @@ export default function VehiclesPage() {
 
       if (data.results && data.results.length > 0) {
         const r = data.results[0];
-        // Normalizar la placa
         const plateDetected = (r.plate || '').toString().toUpperCase().replace(/[^A-Z0-9-]/g, '');
         const confidence = (r.score ?? r.confidence) ?? null;
-
         if (validatePlate(plateDetected)) {
           setForm((prev) => ({ ...prev, plate: plateDetected }));
           setLastConfidence(confidence ?? null);
@@ -485,56 +405,41 @@ export default function VehiclesPage() {
       }
     } catch (err: unknown) {
       console.error('Error reconocimiento:', err);
-      const msg = getErrorMessage(err);
-      setMessage((t('vehicles.recognitionError') ?? 'Error de reconocimiento') + ': ' + msg);
+      setMessage((t('vehicles.recognitionError') ?? 'Error de reconocimiento') + ': ' + getErrorMessage(err));
     } finally {
       setRecognizing(false);
     }
   };
 
-  // ----------------------------------------------------------------------
-  // 3. REGISTRO DESDE MODO AUTOMÁTICO (POST) - Usa Hook
-  // ----------------------------------------------------------------------
   const registerFromAuto = async () => {
-    const { name: formName, plate: formPlate, type: formType } = form;
-
-    const name = formName.trim();
-    const plate = validatePlate(formPlate || '');
+    const name = form.name.trim();
+    const plate = validatePlate(form.plate || '');
 
     if (!name) return setMessage(t('vehicles.nameRequired') ?? 'Nombre requerido');
     if (!plate) return setMessage(t('vehicles.invalidPlate') ?? 'Placa inválida');
 
-    // Duplicado check local
     const duplicate = vehicles.find((v) => v.plate === plate);
-    if (duplicate) return setMessage(t('vehicles.duplicatePlate') ?? 'Placa duplicada. Edite el existente o cambie la placa.');
+    if (duplicate) return setMessage(t('vehicles.duplicatePlate') ?? 'Placa duplicada');
 
-    const newVehicleData: Omit<Vehicle, 'id' | 'createdAt'> = {
-      name,
-      plate,
-      type: formType,
-      facePhoto,
-    };
+    const newVehicleData: Omit<Vehicle, 'id' | 'createdAt'> = { name, plate, type: form.type, facePhoto };
 
-    const result = await saveVehicle(newVehicleData, null); // Siempre es un POST (null editingId)
-
+    const result = await saveVehicle(newVehicleData, null);
     if (result.success) {
       setMessage(t('vehicles.vehicleRegisteredAuto') ?? 'Vehículo registrado automáticamente');
       resetForm();
-      setMode('manual'); // Cambiar a manual después de un registro exitoso
+      setMode('manual');
     }
   };
 
   const captureFacePhoto = () => {
     const video = videoRef.current;
-    if (!video || video.paused || video.ended || video.srcObject === null) {
+    if (!video || video.paused || video.ended || video.srcObject === null)
       return setMessage(t('vehicles.cameraNotStarted') ?? 'Cámara no iniciada');
-    }
 
     const canvas = getCanvas();
     canvas.width = video.videoWidth || 1280;
     canvas.height = video.videoHeight || 720;
     const ctx = canvas.getContext('2d');
-
     if (!ctx) return setMessage(t('vehicles.captureError') ?? 'Error al capturar');
 
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
@@ -543,17 +448,13 @@ export default function VehiclesPage() {
     setMessage(t('vehicles.photoCaptured') ?? 'Foto capturada');
   };
 
-  // ----------------------------------------------------
-  // RENDERIZADO
-  // ----------------------------------------------------
   return (
     <div className="space-y-6 px-4 sm:px-6 lg:px-8">
-      {/* Header + form */}
       <div className="bg-white dark:bg-gray-900 p-6 rounded-2xl shadow-xl max-w-4xl mx-auto">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 gap-4">
           <div className="flex-1 min-w-0">
             <h1 className="text-2xl font-bold text-gray-800 dark:text-white truncate">
-              {editingId !== null ? t('vehicles.editTitle') ?? 'Editar vehículo' : <><span role="img" aria-label="emoji de carro">🚘</span> {t('vehicles.pageTitle') ?? 'Registro de vehículos'}</>}
+              {editingId !== null ? t('vehicles.editTitle') ?? 'Editar vehículo' : <><span role="img" aria-label="car">🚘</span> {t('vehicles.pageTitle') ?? 'Registro de vehículos'}</>}
             </h1>
             <p className="text-sm text-gray-500 dark:text-gray-400 truncate">{t('vehicles.subtitle') ?? 'Gestión de acceso y registro de vehículos en el sistema.'}</p>
           </div>
@@ -565,24 +466,181 @@ export default function VehiclesPage() {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               className="px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-400 dark:bg-gray-800 dark:text-white w-full sm:w-72"
-              aria-label={t('vehicles.searchPlaceholder') ?? 'Buscar vehículo'}
+              aria-label="Buscar vehículo"
             />
-            <button
-              onClick={exportCSV}
-              className="px-3 py-2 bg-green-600 text-white rounded-md hover:brightness-90 transition-all w-full sm:w-auto flex items-center justify-center gap-1"
-              type="button"
-            >
-              <span role="img" aria-label="emoji de descarga">⬇️</span> {t('vehicles.exportCSV') ?? 'Exportar CSV'}
+            <button onClick={exportCSV} className="px-3 py-2 bg-green-600 text-white rounded-md hover:brightness-90 w-full sm:w-auto" type="button">
+              {t('vehicles.exportCSV') ?? 'Exportar CSV'}
             </button>
           </div>
         </div>
 
-        {/* Resto del JSX (igual que antes) */}
-        {/* ... tu JSX continúa tal cual (lo dejé para no alargar demasiado la respuesta) */}
-        {/* He dejado completo el JSX más arriba en tu archivo real; aquí mostramos la parte inicial para no romper la respuesta */}
+        <div className="flex gap-2 mb-4">
+          <button
+            type="button"
+            onClick={() => { setMode('manual'); setLastConfidence(null); }}
+            className={`px-4 py-2 rounded-md ${mode === 'manual' ? 'bg-blue-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-white'}`}
+          >
+            {t('vehicles.manualMode') ?? 'Manual'}
+          </button>
+          <button
+            type="button"
+            onClick={() => { setMode('auto'); setLastConfidence(null); }}
+            className={`px-4 py-2 rounded-md ${mode === 'auto' ? 'bg-blue-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-white'}`}
+            disabled={!PLATE_API_KEY}
+            title={!PLATE_API_KEY ? 'Requiere NEXT_PUBLIC_PLATE_API_KEY' : undefined}
+          >
+            {t('vehicles.autoMode') ?? 'Automático'}
+          </button>
+          {!PLATE_API_KEY && <div className="text-red-500 text-sm flex items-center">🚨 Falta API Key</div>}
+        </div>
+
+        {(mode === 'manual' || mode === 'auto') && (
+          <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <input
+              type="text"
+              placeholder={t('vehicles.ownerPlaceholder') ?? 'Nombre del propietario'}
+              value={form.name}
+              onChange={(e) => setForm({ ...form, name: e.target.value })}
+              required
+              className="col-span-1 md:col-span-2 p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-white"
+            />
+            <input
+              type="text"
+              placeholder={t('vehicles.platePlaceholder') ?? 'Placa'}
+              value={form.plate}
+              onChange={(e) => setForm({ ...form, plate: e.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, '') })}
+              required
+              maxLength={8}
+              className="p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-white"
+            />
+            <select
+              value={form.type}
+              onChange={(e) => setForm({ ...form, type: e.target.value as Vehicle['type'] })}
+              className="p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-white"
+            >
+              <option value="carro">{t('vehicles.typeCar') ?? 'Carro'}</option>
+              <option value="moto">{t('vehicles.typeMotorcycle') ?? 'Moto'}</option>
+              <option value="bicicleta">{t('vehicles.typeBicycle') ?? 'Bicicleta'}</option>
+            </select>
+
+            <div className="md:col-span-3 flex flex-col sm:flex-row items-center gap-4 mt-2">
+              {facePhoto && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={facePhoto} alt="Foto rostro" className="w-24 h-24 rounded-full object-cover border border-gray-300 dark:border-gray-600" onClick={() => setExpandedPhoto(facePhoto)} />
+              )}
+
+              <div className="flex gap-2 w-full sm:w-auto">
+                <button type="button" onClick={captureFacePhoto} className="px-4 py-2 border rounded-md w-full sm:w-auto">
+                  {t('vehicles.captureFace') ?? 'Capturar rostro'}
+                </button>
+              </div>
+            </div>
+
+            <div className="md:col-span-3 flex flex-col sm:flex-row gap-2 mt-2">
+              {mode === 'auto' ? (
+                <>
+                  <button type="button" onClick={registerFromAuto} className="w-full sm:flex-1 bg-blue-600 text-white py-3 rounded-lg font-semibold">
+                    {t('vehicles.registerAuto') ?? 'Registrar (auto)'}
+                  </button>
+                  <button type="button" onClick={() => setMode('manual')} className="w-full sm:w-auto px-4 py-3 border rounded-lg">
+                    {t('vehicles.changeToManual') ?? 'Cambiar a manual'}
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button type="submit" className="w-full sm:flex-1 bg-blue-600 text-white py-3 rounded-lg font-semibold">
+                    {editingId !== null ? t('vehicles.saveChanges') ?? 'Guardar cambios' : t('vehicles.register') ?? 'Registrar'}
+                  </button>
+                  {editingId !== null && (
+                    <button type="button" onClick={cancelEdit} className="w-full sm:w-auto px-4 py-3 border rounded-lg">
+                      {t('vehicles.cancel') ?? 'Cancelar'}
+                    </button>
+                  )}
+                </>
+              )}
+            </div>
+          </form>
+        )}
+
+        {message && <div className={`mt-3 text-sm text-gray-700 dark:text-gray-200 break-words ${message.startsWith('Error') ? 'bg-red-50 p-2 rounded' : 'bg-green-50 p-2 rounded'}`}>{message}</div>}
+
+        {mode === 'manual' && (
+          <div className="mt-4 bg-gray-100 dark:bg-gray-800 p-3 rounded-lg max-w-4xl mx-auto">
+            <video ref={videoRef} className="w-full h-[180px] sm:h-48 md:h-64 lg:h-80 object-cover rounded" autoPlay muted playsInline />
+          </div>
+        )}
+
+        {mode === 'auto' && (
+          <div className="mt-4">
+            <div className="bg-gray-100 dark:bg-gray-800 p-3 rounded-lg">
+              <div className="relative">
+                <video ref={videoRef} id="video" className="w-full h-[180px] sm:h-48 md:h-64 lg:h-80 object-cover rounded" autoPlay muted playsInline />
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                  <div className="w-11/12 sm:w-3/4 lg:w-1/2 h-16 sm:h-20 border-2 border-white/60 rounded-lg"></div>
+                </div>
+              </div>
+
+              <div className="mt-3 flex flex-col sm:flex-row gap-2">
+                <button type="button" onClick={captureAndRecognize} disabled={recognizing} className="w-full sm:w-auto px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-60">
+                  {recognizing ? t('vehicles.processing') ?? 'Procesando...' : t('vehicles.captureAndRecognize') ?? 'Capturar y reconocer'}
+                </button>
+
+                <button type="button" onClick={() => { stopCamera(); setMode('manual'); }} className="w-full sm:w-auto px-4 py-2 border rounded-md">
+                  {t('vehicles.stopCamera') ?? 'Detener cámara'}
+                </button>
+
+                {lastConfidence !== null && <div className="ml-auto text-sm text-gray-600 dark:text-gray-300">{t('vehicles.confidence') ?? 'Confianza'}: {(lastConfidence * 100).toFixed(1)}%</div>}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* Nota: el resto del JSX (lista de vehículos, modal, etc.) permanece igual que antes */}
+      <div className="max-w-4xl mx-auto bg-white dark:bg-gray-900 p-6 rounded-2xl shadow-xl">
+        <h3 className="text-xl font-semibold text-gray-800 dark:text-white mb-4">🧡 {t('vehicles.registeredList') ?? 'Vehículos registrados'} ({vehicles.length})</h3>
+
+        {isLoading ? (
+          <p className="text-blue-600 dark:text-blue-400 text-center py-4">{t('vehicles.loading') ?? 'Cargando vehículos...'}</p>
+        ) : filtered.length === 0 ? (
+          <p className="text-gray-500 dark:text-gray-400">{t('vehicles.noMatches') ?? 'No hay coincidencias'}</p>
+        ) : (
+          <ul className="space-y-3">
+            {filtered.map((v) => (
+              <li key={v.id} className="p-4 border rounded-lg flex flex-col sm:flex-row items-start sm:items-center justify-between bg-gradient-to-r from-white to-blue-50 dark:from-gray-900 dark:to-blue-900/20">
+                <div className="flex items-center gap-3 w-full sm:w-auto">
+                  {v.facePhoto && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={v.facePhoto} alt={`Foto de ${v.name}`} className="w-12 h-12 rounded-full object-cover cursor-pointer" onClick={() => setExpandedPhoto(v.facePhoto || null)} />
+                  )}
+                  <div>
+                    <div className="flex items-baseline gap-3">
+                      <span className="text-lg font-medium text-gray-800 dark:text-white">{v.name}</span>
+                      <span className="text-xs px-2 py-0.5 rounded-md bg-gray-100 dark:bg-gray-800 text-gray-600">{v.type}</span>
+                    </div>
+                    <div className="text-sm text-gray-600 dark:text-gray-300 break-words">{v.plate} • {new Date(v.createdAt).toLocaleString()}</div>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 mt-3 sm:mt-0">
+                  <button onClick={() => handleEdit(v)} className="px-3 py-2 border rounded-md text-sm">{t('vehicles.edit') ?? 'Editar'}</button>
+                  <button onClick={() => handleDelete(v.id)} className="px-3 py-2 bg-red-600 text-white rounded-md text-sm">{t('vehicles.delete') ?? 'Eliminar'}</button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        <div className="mt-4 text-sm text-gray-500 dark:text-gray-400 flex flex-col sm:flex-row justify-between items-center gap-2">
+          <span>{t('vehicles.showing') ?? 'Mostrando'} {filtered.length} {t('vehicles.of') ?? 'de'} {vehicles.length} {t('vehicles.total') ?? 'total'}</span>
+        </div>
+      </div>
+
+      {expandedPhoto && (
+        <div className="fixed inset-0 bg-black bg-opacity-80 flex justify-center items-center z-50 p-4" onClick={() => setExpandedPhoto(null)}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={expandedPhoto} alt="Foto ampliada" className="max-w-full max-h-[90vh] rounded-lg shadow-lg" onClick={(e) => e.stopPropagation()} />
+        </div>
+      )}
     </div>
   );
 }
