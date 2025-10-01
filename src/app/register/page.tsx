@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 import { FaUser, FaEnvelope, FaLock, FaIdCard, FaUserTag, FaCamera } from 'react-icons/fa';
 import Image from 'next/image';
 import { LanguageProvider, useLanguage } from '@/contexts/LanguageContext';
-import { registerUser, verify2fa } from '../../../lib/api'; // Importa la nueva función
+import { registerUser, verify2fa } from '../../../lib/api';
 
 type MsgType = 'success' | 'error' | null;
 
@@ -28,17 +28,14 @@ function RegisterContent() {
     const [messageType, setMessageType] = useState<MsgType>(null);
     const [loading, setLoading] = useState(false);
 
-    // --- Nuevos estados para el 2FA ---
     const [show2FAForm, setShow2FAForm] = useState(false);
     const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string | null>(null);
     const [twoFactorCode, setTwoFactorCode] = useState('');
 
-    // --- Estado y persistencia para la card informativa 2FA ---
     const INFO_KEY = 'seen_2fa_info_v1';
     const [show2FAInfoCard, setShow2FAInfoCard] = useState<boolean>(false);
 
     useEffect(() => {
-        // Al entrar a la página: mostrar modal si no marcó "no volver a mostrar"
         try {
             const seen = typeof window !== 'undefined' ? localStorage.getItem(INFO_KEY) : null;
             setShow2FAInfoCard(!seen);
@@ -47,12 +44,8 @@ function RegisterContent() {
         }
     }, []);
 
-    // Cerrar modal sin recordar la preferencia (se volverá a mostrar la próxima visita)
-    const closeInfo = () => {
-        setShow2FAInfoCard(false);
-    };
+    const closeInfo = () => setShow2FAInfoCard(false);
 
-    // Guardar preferencia de "No volver a mostrar" y cerrar
     const neverShowAgain = () => {
         try {
             if (typeof window !== 'undefined') localStorage.setItem(INFO_KEY, '1');
@@ -82,9 +75,7 @@ function RegisterContent() {
         if (file) {
             setPhotoFile(file);
             const reader = new FileReader();
-            reader.onloadend = () => {
-                setPreview(reader.result as string);
-            };
+            reader.onloadend = () => setPreview(reader.result as string);
             reader.readAsDataURL(file);
         }
     };
@@ -93,40 +84,34 @@ function RegisterContent() {
         e.preventDefault();
 
         if (form.password !== form.confirmPassword) {
-            setTempMessage(t('register.passwordMismatch') ?? 'Las contraseñas no coinciden.', 'error');
+            setTempMessage('Las contraseñas no coinciden.', 'error');
             return;
         }
 
         const roleId = form.role === 'admin' ? 1 : 2;
-
         const formData = new FormData();
         formData.append('name', form.name.trim());
         formData.append('document', form.document.trim());
         formData.append('role', roleId.toString());
-        // Normalizamos email
         const normalizedEmail = (form.email || '').trim().toLowerCase();
         formData.append('email', normalizedEmail);
         formData.append('password', form.password);
-        if (photoFile) {
-            formData.append('profilePhoto', photoFile);
-        }
+        if (photoFile) formData.append('profilePhoto', photoFile);
 
         setLoading(true);
         try {
             const res = await registerUser(formData);
 
-            // Si el backend devuelve una URL de QR, entramos en el flujo de 2FA
             if (res.qrCodeDataUrl) {
                 setQrCodeDataUrl(res.qrCodeDataUrl);
-                setShow2FAForm(true); // Muestra el formulario de 2FA
+                setShow2FAForm(true);
                 setTempMessage(res.message ?? 'Registro exitoso. Escanea el código QR.', 'success');
             } else {
-                // Si no hay 2FA (caso de respaldo), se completa el registro y se redirige
                 if (typeof window !== 'undefined') {
                     if (res.token) localStorage.setItem('token', res.token);
                     if (res.user) localStorage.setItem('user', JSON.stringify(res.user));
                 }
-                setTempMessage(res.message ?? (t('register.successMessage') ?? 'Registro exitoso'), 'success');
+                setTempMessage(res.message ?? 'Registro exitoso.', 'success');
                 setTimeout(() => router.push('/login'), 700);
             }
         } catch (err: unknown) {
@@ -138,17 +123,14 @@ function RegisterContent() {
         }
     };
 
-    // Función para manejar la verificación del código 2FA
     const handleVerify2FA = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
         try {
-            // Normaliza email al verificar 2FA también
             const normalizedEmail = (form.email || '').trim().toLowerCase();
             await verify2fa(normalizedEmail, twoFactorCode);
 
-            setTempMessage(t('register.2faSuccess') ?? '2FA activado exitosamente.', 'success');
-            // Redirige al login después de la verificación exitosa
+            setTempMessage('2FA activado exitosamente.', 'success');
             setTimeout(() => router.push('/login'), 1500);
         } catch (err: unknown) {
             console.error('Verificación 2FA error:', err);
@@ -163,80 +145,6 @@ function RegisterContent() {
         <div className="min-h-screen bg-gray-50 dark:bg-slate-900 flex items-center justify-center p-4">
             <div className="w-full flex flex-col lg:flex-row bg-white dark:bg-slate-800 rounded-2xl shadow-2xl overflow-hidden relative max-h-[90vh]">
 
-                {/* Modal informativo 2FA (bloquea fondo, centrado, responsive) */}
-                {show2FAInfoCard && (
-                    <div className="fixed inset-0 z-[70] flex items-center justify-center px-4">
-                        {/* Backdrop: cierra modal temporalmente (no recuerda la preferencia) */}
-                        <div
-                            className="absolute inset-0 bg-black/50"
-                            onClick={closeInfo}
-                            aria-hidden="true"
-                        />
-                        <div
-                            role="dialog"
-                            aria-modal="true"
-                            aria-label="Información sobre autenticación en dos pasos"
-                            className="relative w-full max-w-2xl mx-auto rounded-lg shadow-xl overflow-hidden"
-                        >
-                            <div className="bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 p-6 sm:p-8 border border-slate-200 dark:border-slate-700">
-                                <div className="flex flex-col sm:flex-row items-start gap-6">
-                                    <div className="flex-1">
-                                        <h3 className="text-xl font-semibold">Protege tu cuenta con autenticación en 2 pasos</h3>
-                                        <p className="mt-3 text-sm text-slate-700 dark:text-slate-200/90 leading-relaxed">
-                                            Recomendamos activar <strong>2FA</strong> para mayor seguridad. Instala una app autenticadora (Google Authenticator, Authy o Microsoft Authenticator).
-                                            Después del registro podrás escanear un código QR y la app generará los códigos OTP.
-                                        </p>
-
-                                        <div className="mt-5 flex flex-wrap gap-3">
-                                            <a
-                                                target="_blank"
-                                                rel="noreferrer"
-                                                href="https://play.google.com/store/search?q=authenticator"
-                                                className="inline-flex items-center gap-2 px-3 py-1 rounded-md bg-slate-100 dark:bg-slate-700/30 hover:bg-slate-200 dark:hover:bg-slate-700/20 text-sm text-slate-800 dark:text-slate-100"
-                                            >
-                                                Descargar (Android)
-                                            </a>
-                                            <a
-                                                target="_blank"
-                                                rel="noreferrer"
-                                                href="https://apps.apple.com/search?term=authenticator"
-                                                className="inline-flex items-center gap-2 px-3 py-1 rounded-md bg-slate-100 dark:bg-slate-700/30 hover:bg-slate-200 dark:hover:bg-slate-700/20 text-sm text-slate-800 dark:text-slate-100"
-                                            >
-                                                Descargar (iOS)
-                                            </a>
-                                        </div>
-                                    </div>
-
-                                    {/* Acciones */}
-                                    <div className="flex flex-col items-end gap-3">
-                                        <button
-                                            onClick={closeInfo}
-                                            className="w-full sm:w-auto px-4 py-2 rounded-full bg-transparent border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700/20"
-                                        >
-                                            Cerrar
-                                        </button>
-
-                                        <button
-                                            onClick={neverShowAgain}
-                                            className="w-full sm:w-auto px-4 py-2 rounded-full bg-transparent border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 text-sm hover:bg-slate-50 dark:hover:bg-slate-700/20"
-                                        >
-                                            No volver a mostrar
-                                        </button>
-
-                                        <button
-                                            onClick={() => setShow2FAInfoCard(false)}
-                                            className="w-full sm:w-auto px-4 py-2 rounded-full bg-slate-900 text-white hover:brightness-95"
-                                            aria-label="Entendido"
-                                        >
-                                            Entendido
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                )}
-
                 {message && (
                     <div
                         role="status"
@@ -250,7 +158,7 @@ function RegisterContent() {
                 )}
 
                 <div className="hidden lg:block lg:w-5/12 relative">
-                    <Image src="/seguridad.webp" alt={t('register.imageAlt')} fill className="object-cover" priority />
+                    <Image src="/seguridad.webp" alt="Imagen de seguridad" fill className="object-cover" priority />
                 </div>
 
                 <div className="w-full lg:w-7/12 p-6 sm:p-10 flex flex-col items-center overflow-auto">
@@ -258,31 +166,28 @@ function RegisterContent() {
                         <Image src="/logo.png" alt="Logo" style={{ width: '80px', height: '80px' }} />
                     </div>
 
-                    {/* Lógica de renderizado condicional */}
                     {!show2FAForm ? (
-                        // --- Formulario de Registro original ---
                         <>
                             <h2 className="text-2xl sm:text-3xl font-bold text-center text-gray-800 dark:text-white mb-8">
-                                {t('register.title')}
+                                Crear cuenta
                             </h2>
                             <form onSubmit={handleSubmit} className="w-full max-w-lg space-y-5" noValidate>
                                 <div className="flex flex-col items-center mb-6">
                                     <label className="cursor-pointer flex flex-col items-center justify-center border-2 border-dashed border-gray-400 rounded-full w-32 h-32 overflow-hidden relative">
                                         {preview ? (
-                                            // eslint-disable-next-line @next/next/no-img-element
                                             <img src={preview} alt="Preview" className="w-full h-full object-cover" />
                                         ) : (
                                             <FaCamera className="text-gray-500 text-3xl" />
                                         )}
                                         <input type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
                                     </label>
-                                    <p className="text-sm text-gray-500 mt-2">{t('register.uploadPhoto')}</p>
+                                    <p className="text-sm text-gray-500 mt-2">Subir foto de perfil</p>
                                 </div>
 
-                                <InputField icon={<FaUser />} name="name" value={form.name} onChange={handleChange} placeholder={t('register.namePlaceholder') ?? 'Nombre completo'} />
-                                <InputField icon={<FaIdCard />} name="document" value={form.document} onChange={handleChange} placeholder={t('register.documentPlaceholder') ?? 'Documento'} />
+                                <InputField icon={<FaUser />} name="name" value={form.name} onChange={handleChange} placeholder="Nombre completo" />
+                                <InputField icon={<FaIdCard />} name="document" value={form.document} onChange={handleChange} placeholder="Documento" />
 
-                                <div className="flex items-center gap-3 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-3 focus-within:ring-2 focus-within:ring-blue-400">
+                                <div className="flex items-center gap-3 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-3">
                                     <FaUserTag className="text-blue-500" />
                                     <select
                                         name="role"
@@ -290,52 +195,48 @@ function RegisterContent() {
                                         onChange={handleChange}
                                         className="w-full bg-transparent outline-none text-gray-800 dark:text-white"
                                         required
-                                        aria-label={t('register.roleSelect') ?? 'Seleccionar rol'}
                                     >
-                                        <option value="">{t('register.roleSelect') ?? 'Selecciona un rol'}</option>
-                                        <option value="admin">{t('register.adminRole') ?? 'Administrador'}</option>
-                                        <option value="usuario">{t('register.userRole') ?? 'Usuario'}</option>
+                                        <option value="">Selecciona un rol</option>
+                                        <option value="admin">Administrador</option>
+                                        <option value="usuario">Usuario</option>
                                     </select>
                                 </div>
 
-                                <InputField icon={<FaEnvelope />} name="email" type="email" value={form.email} onChange={handleChange} placeholder={t('register.emailPlaceholder') ?? 'Correo electrónico'} />
-                                <InputField icon={<FaLock />} name="password" type="password" value={form.password} onChange={handleChange} placeholder={t('register.passwordPlaceholder') ?? 'Contraseña'} />
-                                <InputField icon={<FaLock />} name="confirmPassword" type="password" value={form.confirmPassword} onChange={handleChange} placeholder={t('register.confirmPasswordPlaceholder') ?? 'Confirmar contraseña'} />
+                                <InputField icon={<FaEnvelope />} name="email" type="email" value={form.email} onChange={handleChange} placeholder="Correo electrónico" />
+                                <InputField icon={<FaLock />} name="password" type="password" value={form.password} onChange={handleChange} placeholder="Contraseña" />
+                                <InputField icon={<FaLock />} name="confirmPassword" type="password" value={form.confirmPassword} onChange={handleChange} placeholder="Confirmar contraseña" />
 
                                 <button disabled={loading} type="submit" className="w-full bg-blue-600 text-white py-3 rounded-full hover:bg-blue-700 transition font-semibold text-lg shadow-md">
-                                    {loading ? (t('register.loading') ?? 'Registrando...') : (t('register.submitButton') ?? 'Registrarse')}
+                                    {loading ? "Registrando..." : "Registrarse"}
                                 </button>
                             </form>
 
                             <div className="mt-6 text-center">
                                 <p className="text-sm text-gray-600 dark:text-gray-300">
-                                    {t('register.hasAccount')}{' '}
+                                    ¿Ya tienes cuenta?{" "}
                                     <span onClick={() => router.push('/login')} className="text-blue-600 hover:underline cursor-pointer">
-                                        {t('register.loginLink')}
+                                        Inicia sesión
                                     </span>
                                 </p>
                             </div>
                         </>
                     ) : (
-                        // --- Nuevo formulario de Verificación 2FA ---
                         <div className="flex flex-col items-center text-center w-full max-w-sm">
                             <h2 className="text-xl sm:text-2xl font-bold text-gray-800 dark:text-white mb-4">
-                                {t('register.2faTitle') ?? 'Activar Verificación de 2 Pasos'}
+                                Activar Verificación en 2 Pasos
                             </h2>
                             <p className="text-sm text-gray-600 dark:text-gray-300 mb-6">
-                                {t('register.2faInstructions') ?? 'Escanea este código QR con tu aplicación de autenticación (ej. Google Authenticator) y luego ingresa el código de 6 dígitos.'}
+                                Escanea este código QR con tu aplicación de autenticación (Google Authenticator, Authy o Microsoft Authenticator) y luego ingresa el código de 6 dígitos generado.
                             </p>
                             {qrCodeDataUrl && (
                                 <div className="mb-6 border-4 border-gray-200 dark:border-gray-700 rounded-lg p-2">
-                                    {/* Data URL -> usar <img> es la opción práctica */}
-                                    {/* eslint-disable-next-line @next/next/no-img-element */}
                                     <img src={qrCodeDataUrl} alt="QR Code" width={200} height={200} className="mx-auto" />
                                 </div>
                             )}
                             <form onSubmit={handleVerify2FA} className="w-full space-y-5">
-                                <InputField icon={<FaLock />} name="twoFactorCode" value={twoFactorCode} onChange={handle2FACodeChange} placeholder={t('register.2faCodePlaceholder') ?? 'Código de 6 dígitos'} type="text" />
+                                <InputField icon={<FaLock />} name="twoFactorCode" value={twoFactorCode} onChange={handle2FACodeChange} placeholder="Código de 6 dígitos" type="text" />
                                 <button disabled={loading} type="submit" className="w-full bg-green-600 text-white py-3 rounded-full hover:bg-green-700 transition font-semibold text-lg shadow-md">
-                                    {loading ? (t('register.loading') ?? 'Verificando...') : (t('register.verifyButton') ?? 'Verificar y Activar')}
+                                    {loading ? "Verificando..." : "Verificar y Activar"}
                                 </button>
                             </form>
                         </div>
