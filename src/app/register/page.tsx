@@ -255,7 +255,7 @@ function RegisterContent() {
 
                 <div className="w-full lg:w-7/12 p-6 sm:p-10 flex flex-col items-center overflow-auto">
                     <div className="flex justify-center mb-6">
-                        <Image src="/logo.png" alt="Logo" style={{ width: '80px', height: '80px' }} />
+                        <Image src="/logo.png" alt="Logo" width={80} height={80} priority />
                     </div>
 
                     {/* Lógica de renderizado condicional */}
