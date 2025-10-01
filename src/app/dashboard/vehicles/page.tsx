@@ -209,6 +209,7 @@ export default function VehiclesPage() {
     return canvasRef.current;
   }, []);
 
+  // ---------------------- stopCamera (reemplazada) ----------------------
   const stopCamera = useCallback(() => {
     try {
       if (streamRef.current) {
@@ -227,41 +228,94 @@ export default function VehiclesPage() {
       setCameraStarted(false);
     }
   }, []);
+  // --------------------------------------------------------------------
 
+  // ---------------------- startCamera (reemplazada) ---------------------
   const startCamera = useCallback(async () => {
-    // no double start
+    // No iniciar si ya existe stream
     if (streamRef.current) {
       setCameraStarted(true);
       return;
     }
 
-    try {
-      if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
-        setMessage(t('vehicles.browserNotSupported') ?? 'Tu navegador no soporta cámara');
-        return;
+    // Validación mínima
+    if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
+      setMessage(t('vehicles.browserNotSupported') ?? 'Tu navegador no soporta cámara');
+      return;
+    }
+
+    const preferredConstraints: MediaStreamConstraints = {
+      video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } },
+      audio: false,
+    };
+    const fallbackConstraints: MediaStreamConstraints = { video: true, audio: false };
+
+    const handleGetUserMediaError = (err: unknown) => {
+      console.error('Error iniciando cámara', err);
+      if (err instanceof DOMException) {
+        if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+          setMessage(t('vehicles.cameraError') ?? 'Permiso denegado para la cámara. Revisa la configuración del sitio y permite la cámara.');
+          return;
+        }
+        if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+          setMessage(t('vehicles.cameraNotFound') ?? 'No se encontró dispositivo de cámara. Conecta una cámara e inténtalo de nuevo.');
+          return;
+        }
+        if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
+          setMessage(t('vehicles.cameraInUse') ?? 'No se puede acceder a la cámara (posiblemente en uso por otra aplicación).');
+          return;
+        }
       }
-      const constraints: MediaStreamConstraints = {
-        video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } },
-        audio: false,
-      };
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      setMessage(t('vehicles.cameraError') ?? `No se pudo acceder a la cámara (revisa permisos): ${getErrorMessage(err)}`);
+    };
+
+    // Intento 1: constraints preferentes
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia(preferredConstraints);
       streamRef.current = stream;
       if (videoRef.current) {
-        videoRef.current.srcObject = stream;
         try {
-          await videoRef.current.play();
-        } catch {
-          // autoplay blocked
-        }
+          videoRef.current.srcObject = stream;
+        } catch {}
+        try {
+          await videoRef.current.play().catch(() => {});
+        } catch {}
       }
       setCameraStarted(true);
       setMessage(t('vehicles.cameraStarted') ?? 'Cámara iniciada');
+      return;
     } catch (err: unknown) {
-      console.error('Error iniciando cámara', err);
-      setMessage(t('vehicles.cameraError') ?? `No se pudo acceder a la cámara (revisa permisos): ${getErrorMessage(err)}`);
+      // Si es por constraints (p. ej. resolución no soportada), intentamos fallback
+      const name = (err instanceof DOMException && err.name) ? err.name : null;
+      if (name === 'OverconstrainedError' || name === 'ConstraintNotSatisfiedError' || name === 'NotReadableError') {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia(fallbackConstraints);
+          streamRef.current = stream;
+          if (videoRef.current) {
+            try {
+              videoRef.current.srcObject = stream;
+            } catch {}
+            try {
+              await videoRef.current.play().catch(() => {});
+            } catch {}
+          }
+          setCameraStarted(true);
+          setMessage(t('vehicles.cameraStarted') ?? 'Cámara iniciada');
+          return;
+        } catch (err2: unknown) {
+          handleGetUserMediaError(err2);
+          stopCamera();
+          return;
+        }
+      }
+
+      // Otros errores (permiso, no encontrado, etc.)
+      handleGetUserMediaError(err);
       stopCamera();
+      return;
     }
   }, [t, stopCamera]);
+  // --------------------------------------------------------------------
 
   // No iniciamos la cámara automáticamente. Solo limpiamos al desmontar.
   useEffect(() => {
