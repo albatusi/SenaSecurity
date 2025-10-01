@@ -81,7 +81,7 @@ function LandingPageContent() {
 
       {/* Título centrado arriba (más grande) */}
       <div className="absolute top-6 left-1/2 transform -translate-x-1/2 z-30 flex items-center gap-3 px-4 py-2 rounded-xl">
-        <img src="/logo.png" alt="Logo" style={{ width: '80px', height: '80px' }} />
+        <Image src="/logo.png" alt="Logo" style={{ width: '80px', height: '80px' }} />
         <span className="text-white- font-extrabold text-3xl sm:text-4xl md:text-5xl select-none tracking-tight drop-shadow-sm">
           {t('landing.title')}
         </span>

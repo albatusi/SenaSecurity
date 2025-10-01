@@ -31,11 +31,9 @@ export default function Navbar({ toggleSidebar }: NavbarProps) {
               <Image
                 src="/logo.png"
                 alt={t('navbar.logoAlt') ?? 'Logo'}
-                width={40}
-                height={40}
-                className="object-contain rounded"
+                style={{ width: '80px', height: '80px' }}
                 onError={() => setImgError(true)}
-                priority
+                
               />
             ) : (
               <div className="w-10 h-10 bg-gray-200 dark:bg-gray-700 rounded flex items-center justify-center text-sm font-semibold text-gray-700 dark:text-gray-200">

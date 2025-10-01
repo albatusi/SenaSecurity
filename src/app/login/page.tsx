@@ -259,7 +259,7 @@ function LoginContent() {
       <div className="flex-1 flex items-center justify-center px-6 py-8 w-full">
         <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-6 sm:p-8 w-full max-w-md overflow-auto max-h-[90vh] relative">
           <div className="flex justify-center">
-            <Image src="/logo.png" alt="Logo" width={72} height={72} priority />
+            <Image src="/logo.png" alt="Logo" style={{ width: '80px', height: '80px' }} />
           </div>
 
           {!show2FAForm ? (

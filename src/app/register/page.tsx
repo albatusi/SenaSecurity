@@ -56,7 +56,7 @@ function RegisterContent() {
     const neverShowAgain = () => {
         try {
             if (typeof window !== 'undefined') localStorage.setItem(INFO_KEY, '1');
-        } catch {}
+        } catch { }
         setShow2FAInfoCard(false);
     };
 
@@ -255,7 +255,7 @@ function RegisterContent() {
 
                 <div className="w-full lg:w-7/12 p-6 sm:p-10 flex flex-col items-center overflow-auto">
                     <div className="flex justify-center mb-6">
-                        <Image src="/logo.png" alt="Logo" width={80} height={80} priority />
+                        <Image src="/logo.png" alt="Logo" style={{ width: '80px', height: '80px' }} />
                     </div>
 
                     {/* Lógica de renderizado condicional */}
