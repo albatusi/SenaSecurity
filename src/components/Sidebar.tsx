@@ -124,7 +124,7 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
         {/* Header con logo */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
           <div className="flex items-center gap-3">
-            <Image src="/logo.png" alt="Logo" style={{ width: '80px', height: '80px' }} className="rounded-md" />
+            <Image src="/logo.png" alt="Logo" width={72} height={72} priority className="rounded-md" />
             <div>
               <span className="text-lg font-bold text-gray-800 dark:text-white">{t('sidebar.appName')}</span>
               <div className="text-xs text-gray-500 dark:text-gray-400">{t('sidebar.adminPanel')}</div>
